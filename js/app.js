@@ -43,6 +43,9 @@ function handleLogin(e) {
     
     if (user) {
         currentUser = user;
+        if (typeof initChat === 'function') {
+            initChat();
+        }
         if (user.role === 'admin') {
             navigate('admin');
         } else {
@@ -134,6 +137,15 @@ function handleResetPin(e) {
 
 function logout() {
     currentUser = null;
+    if (typeof toggleChat === 'function' && isChatOpen) {
+        toggleChat();
+    }
+    // Reset Chat Unlock status
+    if (typeof isChatUnlocked !== 'undefined') {
+        // We can't directly modify it if it's in another file's scope, 
+        // but we can call a reset function if we add one.
+        if (typeof resetChatLock === 'function') resetChatLock();
+    }
     navigate('home');
 }
 
@@ -632,6 +644,16 @@ function openUserModal(userId = null) {
                     </select>
                     <p class="text-[10px] text-gray-500 mt-1">Users will be able to see all selected pages after login.</p>
                 </div>
+
+                <div class="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-200 dark:border-white/5">
+                    <label class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="userChatEnabled" ${user.chatEnabled !== false ? 'checked' : ''} class="w-5 h-5 text-brand-500 bg-white dark:bg-slate-800 border-gray-300 dark:border-gray-600 rounded focus:ring-brand-500">
+                        <div>
+                            <span class="text-sm font-bold text-gray-700 dark:text-gray-300">Enable Chat Feature</span>
+                            <p class="text-[10px] text-gray-500">Allow this user to use the WhatsApp-like chat and call feature.</p>
+                        </div>
+                    </label>
+                </div>
                 
                 <div class="sticky bottom-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-t border-gray-200 dark:border-white/10 p-4 -mx-6 -mb-6 mt-4 flex justify-end">
                     <button type="button" onclick="closeModal()" class="px-6 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mr-4 transition-colors">Cancel</button>
@@ -653,24 +675,26 @@ function saveUser(e, editId) {
     const role = document.getElementById('userRole').value;
     const profilePic = document.getElementById('userProfilePic').value;
     const assignedPagesSelect = document.getElementById('userAssignedPages');
-        const assignedPageIds = Array.from(assignedPagesSelect.selectedOptions).map(opt => opt.value);
-        
-        if (editId) {
-            const userObj = db.users.find(u => u.id === editId);
-            userObj.username = username;
-            userObj.pin = pin;
-            if (userObj.username !== 'saveen') {
-                userObj.role = role;
-            }
-            userObj.profilePic = profilePic;
-            userObj.assignedPageIds = assignedPageIds;
-        } else {
-            if (db.users.find(u => u.username === username)) {
-                alert('Username already exists!');
-                return;
-            }
-            db.users.push({ id: generateId(), username, pin, role, profilePic, assignedPageIds });
+    const chatEnabled = document.getElementById('userChatEnabled').checked;
+    const assignedPageIds = Array.from(assignedPagesSelect.selectedOptions).map(opt => opt.value);
+    
+    if (editId) {
+        const userObj = db.users.find(u => u.id === editId);
+        userObj.username = username;
+        userObj.pin = pin;
+        if (userObj.username !== 'saveen') {
+            userObj.role = role;
         }
+        userObj.profilePic = profilePic;
+        userObj.assignedPageIds = assignedPageIds;
+        userObj.chatEnabled = chatEnabled;
+    } else {
+        if (db.users.find(u => u.username === username)) {
+            alert('Username already exists!');
+            return;
+        }
+        db.users.push({ id: generateId(), username, pin, role, profilePic, assignedPageIds, chatEnabled });
+    }
     
     saveDB(db);
     closeModal();
@@ -1386,10 +1410,12 @@ if (window.dataInitialized) {
     window.dataInitialized.then(() => {
         window.appReady = true;
         render();
+        if (typeof initChat === 'function') initChat();
     }).catch(err => {
         console.error("Failed to initialize data:", err);
         window.appReady = true;
         render(); // Try rendering with default/local data
+        if (typeof initChat === 'function') initChat();
     });
 } else {
     console.error("Data initialization script (data.js) failed to load.");
