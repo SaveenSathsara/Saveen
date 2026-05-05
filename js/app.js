@@ -237,6 +237,9 @@ function createAdminView() {
                 <button onclick="switchAdminTab('forms')" class="px-4 py-2 rounded-lg text-sm font-medium transition-all ${adminTab === 'forms' ? 'bg-brand-500 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}">
                     <i class="fas fa-wpforms mr-2"></i>Forms
                 </button>
+                <button onclick="manualCloudSync()" class="ml-2 px-4 py-2 rounded-lg text-sm font-bold bg-green-500 hover:bg-green-600 text-white transition-all shadow-md flex items-center gap-2">
+                    <i class="fas fa-cloud-upload-alt"></i> Save to Cloud
+                </button>
             </div>
         </div>
         
@@ -353,7 +356,7 @@ function openPageModal(pageId = null) {
                         <textarea id="pageContent" required rows="10" class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">${page.content}</textarea>
                     </div>
                     
-                    <div class="flex justify-end pt-4">
+                    <div class="sticky bottom-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-t border-gray-200 dark:border-white/10 p-4 -mx-6 -mb-6 mt-4 flex justify-end">
                         <button type="button" onclick="closeModal()" class="px-6 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mr-4 transition-colors">Cancel</button>
                         <button type="submit" class="px-6 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-medium transition-all shadow-lg shadow-brand-500/30 glow-btn">Save Page</button>
                     </div>
@@ -520,7 +523,7 @@ function openUserModal(userId = null) {
                     </select>
                 </div>
                 
-                <div class="flex justify-end pt-4">
+                <div class="sticky bottom-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-t border-gray-200 dark:border-white/10 p-4 -mx-6 -mb-6 mt-4 flex justify-end">
                     <button type="button" onclick="closeModal()" class="px-6 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mr-4 transition-colors">Cancel</button>
                     <button type="submit" class="px-6 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-medium transition-all shadow-lg shadow-brand-500/30 glow-btn">Save User</button>
                 </div>
@@ -732,7 +735,7 @@ function openFormModal(formId = null) {
                     </div>
                 </div>
                 
-                <div class="flex justify-end pt-4 border-t border-gray-200 dark:border-white/10 mt-4">
+                <div class="sticky bottom-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-t border-gray-200 dark:border-white/10 p-4 -mx-6 -mb-6 mt-4 flex justify-end">
                     <button type="button" onclick="closeModal()" class="px-6 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mr-4 transition-colors">Cancel</button>
                     <button type="submit" class="px-6 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-medium transition-all shadow-lg shadow-brand-500/30 glow-btn">Save Form</button>
                 </div>
@@ -1031,5 +1034,15 @@ function createUserView() {
     return div;
 }
 
-// Ensure the initial render runs
-render();
+// Manual sync to cloud button logic
+window.manualCloudSync = () => {
+    const db = getDB();
+    saveDB(db);
+    alert("Data successfully synced to Cloud!");
+};
+
+// Ensure the initial render runs after Firebase data is loaded
+window.dataInitialized.then(() => {
+    window.appReady = true;
+    render();
+});
