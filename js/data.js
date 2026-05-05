@@ -2,7 +2,7 @@ const DB_KEY = 'saveen_cms_data';
 
 const defaultData = {
     users: [
-        { id: 'u1', username: 'saveen', pin: '760543250', role: 'admin', assignedPageId: null }
+        { id: 'u1', username: 'saveen', pin: '760543250', role: 'admin', assignedPageIds: [] }
     ],
     pages: [
         { id: 'home', title: 'Home', content: '<h1 class="text-4xl md:text-6xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-purple-600 dark:from-brand-400 dark:to-purple-500">Welcome</h1><p class="text-xl text-gray-600 dark:text-gray-300">This is Saveen Sathsara\'s Personal Web Platform.</p>', isSystem: true }
@@ -70,6 +70,19 @@ function getDB() {
     if (!dbData.pages) dbData.pages = [];
     if (!dbData.forms) dbData.forms = [];
     if (!dbData.formSubmissions) dbData.formSubmissions = [];
+
+    // Migration: assignedPageId -> assignedPageIds
+    dbData.users.forEach(u => {
+        if (u.assignedPageId !== undefined) {
+            if (!u.assignedPageIds) {
+                u.assignedPageIds = u.assignedPageId ? [u.assignedPageId] : [];
+            }
+            delete u.assignedPageId;
+        }
+        if (!u.assignedPageIds) {
+            u.assignedPageIds = [];
+        }
+    });
     
     return dbData;
 }

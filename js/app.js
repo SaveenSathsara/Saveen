@@ -4,6 +4,7 @@ let currentView = 'home'; // home, login, admin, userView, publicPage
 let adminTab = 'pages'; // pages, users, forms
 let activeModal = null; // modal id if open
 let activePublicPageId = null; // public page id being viewed
+let activeUserPageId = null; // user page id being viewed
 
 const appContainer = document.getElementById('app');
 
@@ -45,10 +46,88 @@ function handleLogin(e) {
         if (user.role === 'admin') {
             navigate('admin');
         } else {
+            activeUserPageId = user.assignedPageIds && user.assignedPageIds.length > 0 ? user.assignedPageIds[0] : null;
             navigate('userView');
         }
     } else {
         errorEl.innerText = 'Invalid username or PIN';
+        errorEl.classList.remove('hidden');
+    }
+}
+
+function openResetPinModal() {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[100] flex items-center justify-center modal-overlay fade-in p-4';
+    modal.innerHTML = `
+        <div class="glass-panel w-full max-w-md rounded-2xl p-8 slide-up relative overflow-hidden">
+            <div class="absolute -top-20 -right-20 w-40 h-40 bg-purple-400 dark:bg-purple-500 rounded-full mix-blend-multiply filter blur-[60px] opacity-30 dark:opacity-40 pointer-events-none"></div>
+            
+            <div class="flex justify-between items-center mb-6 relative z-10">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Reset PIN</h3>
+                <button onclick="closeModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <form id="resetPinForm" onsubmit="handleResetPin(event)" class="space-y-4 relative z-10">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
+                    <input type="text" id="resetUsername" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" placeholder="Username">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Old PIN</label>
+                    <input type="password" id="resetOldPin" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" placeholder="••••••••">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New PIN</label>
+                    <input type="password" id="resetNewPin" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" placeholder="••••••••">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Confirm New PIN</label>
+                    <input type="password" id="resetConfirmPin" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" placeholder="••••••••">
+                </div>
+                
+                <div id="resetError" class="text-red-500 dark:text-red-400 text-sm hidden bg-red-100 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-500/30 text-center"></div>
+                <div id="resetSuccess" class="text-green-500 dark:text-green-400 text-sm hidden bg-green-100 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-500/30 text-center"></div>
+                
+                <div class="flex justify-end gap-3 mt-6">
+                    <button type="button" onclick="closeModal()" class="px-6 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Cancel</button>
+                    <button type="submit" class="px-6 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-medium transition-all shadow-lg shadow-brand-500/30 glow-btn">Update PIN</button>
+                </div>
+            </form>
+        </div>
+    `;
+    activeModal = modal;
+    render();
+}
+
+function handleResetPin(e) {
+    e.preventDefault();
+    const username = document.getElementById('resetUsername').value;
+    const oldPin = document.getElementById('resetOldPin').value;
+    const newPin = document.getElementById('resetNewPin').value;
+    const confirmPin = document.getElementById('resetConfirmPin').value;
+    const errorEl = document.getElementById('resetError');
+    const successEl = document.getElementById('resetSuccess');
+    
+    errorEl.classList.add('hidden');
+    successEl.classList.add('hidden');
+    
+    if (newPin !== confirmPin) {
+        errorEl.innerText = 'New PIN and Confirm PIN do not match!';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    const db = getDB();
+    const user = db.users.find(u => u.username === username && u.pin === oldPin);
+    
+    if (user) {
+        user.pin = newPin;
+        saveDB(db);
+        successEl.innerText = 'PIN updated successfully! You can now login with your new PIN.';
+        successEl.classList.remove('hidden');
+        setTimeout(() => closeModal(), 3000);
+    } else {
+        errorEl.innerText = 'Invalid username or old PIN!';
         errorEl.classList.remove('hidden');
     }
 }
@@ -127,7 +206,7 @@ function renderNavbar() {
     } else {
         const dashboardBtn = currentUser.role === 'admin' 
             ? `<button onclick="navigate('admin')" class="px-3 md:px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-white transition-colors text-sm md:text-base">Dashboard</button>`
-            : `<button onclick="navigate('userView')" class="px-3 md:px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-white transition-colors text-sm md:text-base">My Page</button>`;
+            : `<button onclick="navigate('userView')" class="px-3 md:px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-white transition-colors text-sm md:text-base">My Pages</button>`;
             
         menu.innerHTML += `
             ${dashboardBtn}
@@ -210,6 +289,9 @@ function createLoginView() {
                 <button type="submit" class="w-full bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-brand-500/25 glow-btn mt-4">
                     Sign In <i class="fas fa-arrow-right ml-2"></i>
                 </button>
+                <div class="text-center mt-6">
+                    <button type="button" onclick="openResetPinModal()" class="text-sm text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Forgot PIN?</button>
+                </div>
             </form>
         </div>
     `;
@@ -443,7 +525,8 @@ function renderAdminUsers() {
     `;
     
     db.users.forEach(u => {
-        const pageName = u.assignedPageId ? (db.pages.find(p => p.id === u.assignedPageId)?.title || u.assignedPageId) : 'None';
+        const assignedPages = (u.assignedPageIds || []).map(pid => db.pages.find(p => p.id === pid)?.title || pid);
+        const pageNames = assignedPages.length > 0 ? assignedPages.join(', ') : 'None';
         html += `
             <tr class="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
                 <td class="px-6 py-4 font-medium text-gray-900 dark:text-white flex items-center gap-3">
@@ -457,7 +540,7 @@ function renderAdminUsers() {
                         ${u.role}
                     </span>
                 </td>
-                <td class="px-6 py-4 text-gray-500 dark:text-gray-400">${pageName}</td>
+                <td class="px-6 py-4 text-gray-500 dark:text-gray-400">${pageNames}</td>
                 <td class="px-6 py-4 text-right">
                     <button onclick="openUserModal('${u.id}')" class="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 mr-3 transition-colors" title="Edit"><i class="fas fa-edit"></i></button>
                     ${u.username !== 'saveen' ? `<button onclick="deleteUser('${u.id}')" class="text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors" title="Delete"><i class="fas fa-trash"></i></button>` : ''}
@@ -473,7 +556,7 @@ function renderAdminUsers() {
 
 function openUserModal(userId = null) {
     const db = getDB();
-    let user = { id: '', username: '', pin: '', role: 'user', assignedPageId: '' };
+    let user = { id: '', username: '', pin: '', role: 'user', assignedPageIds: [] };
     let isEdit = false;
     
     if (userId) {
@@ -481,9 +564,10 @@ function openUserModal(userId = null) {
         isEdit = true;
     }
     
-    let pageOptions = '<option value="">None</option>';
+    let pageOptions = '';
     db.pages.forEach(p => {
-        pageOptions += `<option value="${p.id}" ${user.assignedPageId === p.id ? 'selected' : ''}>${p.title}</option>`;
+        const isSelected = (user.assignedPageIds || []).includes(p.id);
+        pageOptions += `<option value="${p.id}" ${isSelected ? 'selected' : ''}>${p.title}</option>`;
     });
     
     const modal = document.createElement('div');
@@ -517,10 +601,11 @@ function openUserModal(userId = null) {
                 ` : '<input type="hidden" id="userRole" value="admin">'}
                 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Page (Opens on Login)</label>
-                    <select id="userAssignedPage" class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 dark:[&>option]:bg-slate-800">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Pages (Hold Ctrl to select multiple)</label>
+                    <select id="userAssignedPages" multiple class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 dark:[&>option]:bg-slate-800 min-h-[120px]">
                         ${pageOptions}
                     </select>
+                    <p class="text-[10px] text-gray-500 mt-1">Users will be able to see all selected pages after login.</p>
                 </div>
                 
                 <div class="sticky bottom-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-t border-gray-200 dark:border-white/10 p-4 -mx-6 -mb-6 mt-4 flex justify-end">
@@ -541,23 +626,24 @@ function saveUser(e, editId) {
     const username = document.getElementById('userUsername').value;
     const pin = document.getElementById('userPin').value;
     const role = document.getElementById('userRole').value;
-    const assignedPageId = document.getElementById('userAssignedPage').value;
-    
-    if (editId) {
-        const userObj = db.users.find(u => u.id === editId);
-        userObj.username = username;
-        userObj.pin = pin;
-        if (userObj.username !== 'saveen') {
-            userObj.role = role;
+        const assignedPagesSelect = document.getElementById('userAssignedPages');
+        const assignedPageIds = Array.from(assignedPagesSelect.selectedOptions).map(opt => opt.value);
+        
+        if (editId) {
+            const userObj = db.users.find(u => u.id === editId);
+            userObj.username = username;
+            userObj.pin = pin;
+            if (userObj.username !== 'saveen') {
+                userObj.role = role;
+            }
+            userObj.assignedPageIds = assignedPageIds;
+        } else {
+            if (db.users.find(u => u.username === username)) {
+                alert('Username already exists!');
+                return;
+            }
+            db.users.push({ id: generateId(), username, pin, role, assignedPageIds });
         }
-        userObj.assignedPageId = assignedPageId;
-    } else {
-        if (db.users.find(u => u.username === username)) {
-            alert('Username already exists!');
-            return;
-        }
-        db.users.push({ id: generateId(), username, pin, role, assignedPageId });
-    }
     
     saveDB(db);
     closeModal();
@@ -1003,36 +1089,83 @@ function createPublicPageView() {
 // ---------------- User View ----------------
 function createUserView() {
     const div = document.createElement('div');
-    div.className = 'flex-grow flex flex-col fade-in pb-20 w-full';
+    div.className = 'flex-grow flex flex-col md:flex-row gap-8 fade-in pb-20 w-full';
     
     const db = getDB();
-    const pageId = currentUser.assignedPageId;
-    const page = db.pages.find(p => p.id === pageId);
+    const assignedIds = currentUser.assignedPageIds || [];
     
-    if (!page) {
+    if (assignedIds.length === 0) {
         div.innerHTML = `
             <div class="glass-panel p-10 rounded-3xl text-center max-w-2xl mx-auto w-full mt-10">
                 <div class="w-20 h-20 bg-yellow-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
                     <i class="fas fa-exclamation-triangle text-3xl text-yellow-500"></i>
                 </div>
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">No Page Assigned</h2>
-                <p class="text-gray-600 dark:text-gray-400">Please contact the administrator to assign a page to your account.</p>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">No Pages Assigned</h2>
+                <p class="text-gray-600 dark:text-gray-400">Please contact the administrator to assign pages to your account.</p>
             </div>
         `;
         return div;
     }
     
-    const content = parsePageContent(page.content);
+    // Ensure activeUserPageId is valid
+    if (!activeUserPageId || !assignedIds.includes(activeUserPageId)) {
+        activeUserPageId = assignedIds[0];
+    }
     
-    div.innerHTML = `
-        <div class="prose prose-lg dark:prose-invert max-w-none w-full bg-white/80 dark:bg-white/[0.01] p-8 md:p-12 rounded-3xl border border-gray-200 dark:border-white/5 backdrop-blur-sm shadow-2xl relative mt-8">
-            <div class="absolute -top-40 -right-40 w-80 h-80 bg-brand-300 dark:bg-brand-600 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 pointer-events-none"></div>
-            ${content}
-        </div>
+    const page = db.pages.find(p => p.id === activeUserPageId);
+    
+    // Sidebar for page selection
+    const sidebar = document.createElement('div');
+    sidebar.className = 'w-full md:w-64 shrink-0';
+    
+    let sidebarHtml = `
+        <div class="glass-panel p-6 rounded-2xl sticky top-28">
+            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 px-2">My Assigned Pages</h3>
+            <div class="space-y-1">
     `;
+    
+    assignedIds.forEach(pid => {
+        const p = db.pages.find(pg => pg.id === pid);
+        if (p) {
+            const isActive = activeUserPageId === pid;
+            sidebarHtml += `
+                <button onclick="switchUserPage('${pid}')" class="w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${isActive ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/30' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'}">
+                    <i class="fas ${isActive ? 'fa-file-alt' : 'fa-file'}"></i>
+                    <span class="font-medium">${p.title}</span>
+                </button>
+            `;
+        }
+    });
+    
+    sidebarHtml += `</div></div>`;
+    sidebar.innerHTML = sidebarHtml;
+    
+    const contentArea = document.createElement('div');
+    contentArea.className = 'flex-grow';
+    
+    if (!page) {
+        contentArea.innerHTML = `<div class="text-center text-gray-900 dark:text-gray-400 mt-10 text-2xl">Page not found</div>`;
+    } else {
+        const content = parsePageContent(page.content);
+        contentArea.innerHTML = `
+            <div class="prose prose-lg dark:prose-invert max-w-none w-full bg-white/80 dark:bg-white/[0.01] p-8 md:p-12 rounded-3xl border border-gray-200 dark:border-white/5 backdrop-blur-sm shadow-2xl relative">
+                <div class="absolute -top-40 -right-40 w-80 h-80 bg-brand-300 dark:bg-brand-600 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 pointer-events-none"></div>
+                <h1 class="text-4xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-purple-600 dark:from-brand-400 dark:to-purple-500">${page.title}</h1>
+                ${content}
+            </div>
+        `;
+    }
+    
+    div.appendChild(sidebar);
+    div.appendChild(contentArea);
     
     return div;
 }
+
+window.switchUserPage = (pageId) => {
+    activeUserPageId = pageId;
+    render();
+};
 
 // Manual sync to cloud button logic
 window.manualCloudSync = () => {
