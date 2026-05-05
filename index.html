@@ -28,6 +28,25 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="css/style.css?v=3.0" rel="stylesheet">
+    <script>
+        // Global Error Handler - Catch early script errors
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            const app = document.getElementById('app');
+            if (app) {
+                app.innerHTML = `
+                    <div style="position: fixed; inset: 0; z-index: 9999; background: #7f1d1d; color: white; padding: 40px; font-family: monospace; overflow: auto;">
+                        <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 20px;">JavaScript Error Detected</h1>
+                        <p style="font-size: 18px; margin-bottom: 10px;">${msg}</p>
+                        <p style="font-size: 14px; opacity: 0.7;">Line: ${lineNo}, Column: ${columnNo}</p>
+                        <p style="font-size: 14px; opacity: 0.7; margin-bottom: 20px;">File: ${url}</p>
+                        <pre style="background: rgba(0,0,0,0.5); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); white-space: pre-wrap;">${error ? error.stack : 'No stack trace available'}</pre>
+                        <button onclick="location.reload()" style="margin-top: 30px; padding: 12px 24px; bg: white; color: #7f1d1d; border-radius: 8px; font-weight: bold; cursor: pointer; border: none;">Reload Page</button>
+                    </div>
+                `;
+            }
+            return false;
+        };
+    </script>
 </head>
 <body class="bg-gray-50 dark:bg-[#0f172a] text-gray-900 dark:text-white font-sans antialiased overflow-x-hidden transition-colors duration-300 selection:bg-brand-500 selection:text-white">
     <!-- Background Animated Shapes -->

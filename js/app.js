@@ -1,7 +1,7 @@
 // Global State
 let currentUser = null;
 let currentView = 'home'; // home, login, admin, userView, publicPage
-let adminTab = 'pages'; // pages, users, forms
+let adminTab = 'pages'; // pages, users, forms, galleries
 let activeModal = null; // modal id if open
 let activePublicPageId = null; // public page id being viewed
 let activeUserPageId = null; // user page id being viewed
@@ -189,7 +189,11 @@ function renderNavbar() {
     navLinks.className = 'hidden md:flex items-center gap-6 mr-4';
     db.pages.forEach(p => {
         if (p.showInNav && !p.isSystem) {
-            navLinks.innerHTML += `<button onclick="viewPublicPage('${p.id}')" class="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-white transition-colors">${p.title}</button>`;
+            const btn = document.createElement('button');
+            btn.onclick = () => viewPublicPage(p.id);
+            btn.className = 'text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-white transition-colors';
+            btn.innerText = p.title;
+            navLinks.appendChild(btn);
         }
     });
     menu.appendChild(navLinks);
@@ -201,23 +205,31 @@ function renderNavbar() {
     themeBtn.innerHTML = `<i id="themeToggleIcon" class="fas ${document.documentElement.classList.contains('dark') ? 'fa-sun' : 'fa-moon'}"></i>`;
     menu.appendChild(themeBtn);
     
+    const authArea = document.createElement('div');
+    authArea.className = 'flex items-center gap-2';
+    
     if (!currentUser) {
-        menu.innerHTML += `<button onclick="navigate('login')" class="px-6 py-2 rounded-full bg-brand-600 hover:bg-brand-500 text-white font-medium transition-all glow-btn shadow-lg shadow-brand-500/30">Login</button>`;
+        authArea.innerHTML = `<button onclick="navigate('login')" class="px-6 py-2 rounded-full bg-brand-600 hover:bg-brand-500 text-white font-medium transition-all glow-btn shadow-lg shadow-brand-500/30">Login</button>`;
     } else {
         const dashboardBtn = currentUser.role === 'admin' 
             ? `<button onclick="navigate('admin')" class="px-3 md:px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-white transition-colors text-sm md:text-base">Dashboard</button>`
             : `<button onclick="navigate('userView')" class="px-3 md:px-4 py-2 text-gray-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-white transition-colors text-sm md:text-base">My Pages</button>`;
             
-        menu.innerHTML += `
+        const userAvatar = currentUser.profilePic 
+            ? `<img src="${currentUser.profilePic}" class="w-8 h-8 rounded-full object-cover shadow-lg border border-white/20">`
+            : `<div class="w-8 h-8 rounded-full bg-gradient-to-tr from-brand-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-lg">
+                    ${currentUser.username.charAt(0).toUpperCase()}
+                </div>`;
+
+        authArea.innerHTML = `
             ${dashboardBtn}
             <div class="flex items-center gap-3 ml-1 md:ml-2 border-l border-gray-300 dark:border-gray-700 pl-3 md:pl-4">
-                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-brand-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-lg">
-                    ${currentUser.username.charAt(0).toUpperCase()}
-                </div>
+                ${userAvatar}
                 <button onclick="logout()" class="text-sm text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors"><i class="fas fa-sign-out-alt"></i></button>
             </div>
         `;
     }
+    menu.appendChild(authArea);
     
     nav.appendChild(logo);
     nav.appendChild(menu);
@@ -319,6 +331,9 @@ function createAdminView() {
                 <button onclick="switchAdminTab('forms')" class="px-4 py-2 rounded-lg text-sm font-medium transition-all ${adminTab === 'forms' ? 'bg-brand-500 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}">
                     <i class="fas fa-wpforms mr-2"></i>Forms
                 </button>
+                <button onclick="switchAdminTab('galleries')" class="px-4 py-2 rounded-lg text-sm font-medium transition-all ${adminTab === 'galleries' ? 'bg-brand-500 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}">
+                    <i class="fas fa-images mr-2"></i>Galleries
+                </button>
                 <button onclick="manualCloudSync()" class="ml-2 px-4 py-2 rounded-lg text-sm font-bold bg-green-500 hover:bg-green-600 text-white transition-all shadow-md flex items-center gap-2">
                     <i class="fas fa-cloud-upload-alt"></i> Save to Cloud
                 </button>
@@ -336,6 +351,7 @@ function createAdminView() {
             if (adminTab === 'pages') contentDiv.appendChild(renderAdminPages());
             if (adminTab === 'users') contentDiv.appendChild(renderAdminUsers());
             if (adminTab === 'forms') contentDiv.appendChild(renderAdminForms());
+            if (adminTab === 'galleries') contentDiv.appendChild(renderAdminGalleries());
         }
     }, 0);
     
@@ -431,6 +447,7 @@ function openPageModal(pageId = null) {
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Content (HTML allowed)</label>
                             <div class="flex gap-2">
                                 <button type="button" onclick="insertShortcode('form')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fas fa-wpforms mr-1 text-brand-500 dark:text-brand-400"></i> Form</button>
+                                <button type="button" onclick="insertShortcode('gallery')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fas fa-images mr-1 text-green-500 dark:text-green-400"></i> Gallery</button>
                                 <button type="button" onclick="insertShortcode('youtube')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fab fa-youtube mr-1 text-red-500 dark:text-red-400"></i> YouTube</button>
                                 <button type="button" onclick="insertShortcode('gdoc')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fas fa-file-alt mr-1 text-blue-500 dark:text-blue-400"></i> Google Doc/Form</button>
                             </div>
@@ -530,9 +547,12 @@ function renderAdminUsers() {
         html += `
             <tr class="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
                 <td class="px-6 py-4 font-medium text-gray-900 dark:text-white flex items-center gap-3">
-                    <div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-300">
-                        ${u.username.charAt(0).toUpperCase()}
-                    </div>
+                    ${u.profilePic 
+                        ? `<img src="${u.profilePic}" class="w-8 h-8 rounded-full object-cover">` 
+                        : `<div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-gray-600 dark:text-gray-300">
+                                ${u.username.charAt(0).toUpperCase()}
+                           </div>`
+                    }
                     ${u.username}
                 </td>
                 <td class="px-6 py-4">
@@ -556,7 +576,7 @@ function renderAdminUsers() {
 
 function openUserModal(userId = null) {
     const db = getDB();
-    let user = { id: '', username: '', pin: '', role: 'user', assignedPageIds: [] };
+    let user = { id: '', username: '', pin: '', role: 'user', assignedPageIds: [], profilePic: '' };
     let isEdit = false;
     
     if (userId) {
@@ -588,6 +608,11 @@ function openUserModal(userId = null) {
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">PIN</label>
                     <input type="text" id="userPin" value="${user.pin}" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Profile Picture URL</label>
+                    <input type="text" id="userProfilePic" value="${user.profilePic || ''}" class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" placeholder="https://example.com/image.jpg">
                 </div>
                 
                 ${user.username !== 'saveen' ? `
@@ -626,7 +651,8 @@ function saveUser(e, editId) {
     const username = document.getElementById('userUsername').value;
     const pin = document.getElementById('userPin').value;
     const role = document.getElementById('userRole').value;
-        const assignedPagesSelect = document.getElementById('userAssignedPages');
+    const profilePic = document.getElementById('userProfilePic').value;
+    const assignedPagesSelect = document.getElementById('userAssignedPages');
         const assignedPageIds = Array.from(assignedPagesSelect.selectedOptions).map(opt => opt.value);
         
         if (editId) {
@@ -636,13 +662,14 @@ function saveUser(e, editId) {
             if (userObj.username !== 'saveen') {
                 userObj.role = role;
             }
+            userObj.profilePic = profilePic;
             userObj.assignedPageIds = assignedPageIds;
         } else {
             if (db.users.find(u => u.username === username)) {
                 alert('Username already exists!');
                 return;
             }
-            db.users.push({ id: generateId(), username, pin, role, assignedPageIds });
+            db.users.push({ id: generateId(), username, pin, role, profilePic, assignedPageIds });
         }
     
     saveDB(db);
@@ -922,6 +949,11 @@ window.insertShortcode = (type) => {
         let options = db.forms.map(f => `${f.title} (ID: ${f.id})`).join('\n');
         const formId = prompt("Enter the Form ID to insert:\nAvailable Forms:\n" + (options || "No forms available"));
         if (formId) insertion = `\n[FORM:${formId.trim()}]\n`;
+    } else if (type === 'gallery') {
+        const db = getDB();
+        let options = db.galleries.map(g => `${g.title} (ID: ${g.id})`).join('\n');
+        const galleryId = prompt("Enter the Gallery ID to insert:\nAvailable Galleries:\n" + (options || "No galleries available"));
+        if (galleryId) insertion = `\n[GALLERY:${galleryId.trim()}]\n`;
     } else if (type === 'youtube') {
         const url = prompt("Enter YouTube Video URL:");
         if (url) {
@@ -957,8 +989,9 @@ window.insertShortcode = (type) => {
 function parsePageContent(content) {
     const db = getDB();
     const formRegex = /\[FORM:([a-zA-Z0-9]+)\]/g;
+    const galleryRegex = /\[GALLERY:([a-zA-Z0-9]+)\]/g;
     
-    return content.replace(formRegex, (match, formId) => {
+    let parsedContent = content.replace(formRegex, (match, formId) => {
         const form = db.forms.find(f => f.id === formId);
         if (!form) return `<div class="text-red-500 p-4 border border-red-200 rounded bg-red-50 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-400 my-4">Error: Form not found (ID: ${formId})</div>`;
         
@@ -1004,6 +1037,29 @@ function parsePageContent(content) {
                         Submit Answer
                     </button>
                 </form>
+            </div>
+        `;
+    });
+
+    return parsedContent.replace(galleryRegex, (match, galleryId) => {
+        const gallery = db.galleries.find(g => g.id === galleryId);
+        if (!gallery) return `<div class="text-red-500 p-4 border border-red-200 rounded bg-red-50 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-400 my-4">Error: Gallery not found (ID: ${galleryId})</div>`;
+        
+        return `
+            <div class="my-8">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">${gallery.title}</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    ${(gallery.images || []).map(img => `
+                        <div class="group relative overflow-hidden rounded-2xl shadow-lg aspect-square">
+                            <img src="${img.url}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt="${img.caption || ''}">
+                            ${img.caption ? `
+                                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6">
+                                    <p class="text-white font-medium">${img.caption}</p>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+                </div>
             </div>
         `;
     });
@@ -1167,6 +1223,157 @@ window.switchUserPage = (pageId) => {
     render();
 };
 
+// ---------------- Admin: Galleries ----------------
+function renderAdminGalleries() {
+    const div = document.createElement('div');
+    const db = getDB();
+    
+    let html = `
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Galleries Management</h2>
+            <button onclick="openGalleryModal()" class="bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-lg font-medium transition-colors text-sm flex items-center gap-2">
+                <i class="fas fa-plus"></i> New Gallery
+            </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    `;
+    
+    if (db.galleries.length === 0) {
+        html += `<div class="col-span-full text-center py-10 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-white/[0.02] rounded-xl border border-gray-200 dark:border-white/5 border-dashed">No galleries created yet.</div>`;
+    }
+    
+    db.galleries.forEach(g => {
+        html += `
+            <div class="glass-panel p-6 rounded-xl border border-gray-200 dark:border-white/5 relative group hover:-translate-y-1 transition-transform">
+                <div class="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                    <button onclick="openGalleryModal('${g.id}')" class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-slate-800 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 flex items-center justify-center transition-colors"><i class="fas fa-edit"></i></button>
+                    <button onclick="deleteGallery('${g.id}')" class="w-8 h-8 rounded-lg bg-gray-100 dark:bg-slate-800 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 flex items-center justify-center transition-colors"><i class="fas fa-trash"></i></button>
+                </div>
+                <div class="w-full aspect-video rounded-xl overflow-hidden mb-4 bg-gray-100 dark:bg-slate-800">
+                    ${g.images && g.images.length > 0 ? `<img src="${g.images[0].url}" class="w-full h-full object-cover">` : '<div class="w-full h-full flex items-center justify-center text-gray-400"><i class="fas fa-images text-2xl"></i></div>'}
+                </div>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-1">${g.title}</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400">${g.images ? g.images.length : 0} Images</p>
+                <div class="mt-4 pt-4 border-t border-gray-100 dark:border-white/5 text-xs text-gray-400 font-mono">
+                    ID: ${g.id}
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `</div>`;
+    div.innerHTML = html;
+    return div;
+}
+
+function openGalleryModal(galleryId = null) {
+    const db = getDB();
+    let gallery = { id: '', title: '', images: [] };
+    let isEdit = false;
+    
+    if (galleryId) {
+        gallery = db.galleries.find(g => g.id === galleryId);
+        isEdit = true;
+    }
+    
+    window._tempGalleryImages = JSON.parse(JSON.stringify(gallery.images || []));
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[100] flex items-center justify-center modal-overlay fade-in p-4';
+    
+    window.renderGalleryImagesHTML = () => {
+        if (window._tempGalleryImages.length === 0) return '<div class="text-center text-gray-500 dark:text-gray-400 py-4 text-sm">No images added yet.</div>';
+        return window._tempGalleryImages.map((img, idx) => `
+            <div class="flex gap-4 mb-4 bg-gray-50 dark:bg-white/[0.02] p-4 rounded-lg border border-gray-200 dark:border-white/5 items-center">
+                <div class="w-20 h-20 shrink-0 rounded-lg overflow-hidden bg-gray-200 dark:bg-slate-800">
+                    <img src="${img.url}" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/150?text=Invalid+URL'">
+                </div>
+                <div class="flex-grow space-y-2">
+                    <input type="text" value="${img.url}" onchange="updateTempGalleryImage(${idx}, 'url', this.value)" placeholder="Image URL" class="glass-input w-full px-3 py-2 text-sm rounded bg-white dark:bg-slate-800/50 border-gray-200 dark:border-none text-gray-900 dark:text-white">
+                    <input type="text" value="${img.caption || ''}" onchange="updateTempGalleryImage(${idx}, 'caption', this.value)" placeholder="Caption (optional)" class="glass-input w-full px-3 py-2 text-sm rounded bg-white dark:bg-slate-800/50 border-gray-200 dark:border-none text-gray-900 dark:text-white">
+                </div>
+                <button type="button" onclick="removeTempGalleryImage(${idx})" class="w-10 h-10 shrink-0 rounded bg-red-100 dark:bg-red-500/20 text-red-500 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30 flex items-center justify-center transition-colors">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `).join('');
+    };
+    
+    window.updateTempGalleryImage = (idx, key, value) => {
+        window._tempGalleryImages[idx][key] = value;
+        if (key === 'url') document.getElementById('galleryImagesContainer').innerHTML = renderGalleryImagesHTML();
+    };
+    window.removeTempGalleryImage = (idx) => {
+        window._tempGalleryImages.splice(idx, 1);
+        document.getElementById('galleryImagesContainer').innerHTML = renderGalleryImagesHTML();
+    };
+    window.addTempGalleryImage = () => {
+        window._tempGalleryImages.push({ url: '', caption: '' });
+        document.getElementById('galleryImagesContainer').innerHTML = renderGalleryImagesHTML();
+    };
+    
+    modal.innerHTML = `
+        <div class="glass-panel w-full max-w-3xl rounded-2xl p-6 md:p-8 slide-up relative max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white">${isEdit ? 'Edit Gallery' : 'Create New Gallery'}</h3>
+                <button onclick="closeModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <form onsubmit="saveGallery(event, '${galleryId || ''}')" class="space-y-6 flex-grow overflow-y-auto pr-2 custom-scrollbar">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Gallery Title</label>
+                    <input type="text" id="galleryTitle" value="${gallery.title}" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500">
+                </div>
+                
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Images</label>
+                        <button type="button" onclick="addTempGalleryImage()" class="text-xs bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-white px-3 py-1.5 rounded transition-colors border border-gray-200 dark:border-transparent font-medium"><i class="fas fa-plus mr-1"></i> Add Image</button>
+                    </div>
+                    <div id="galleryImagesContainer" class="bg-gray-50/50 dark:bg-black/20 p-4 rounded-xl border border-gray-200 dark:border-white/5 min-h-[150px]">
+                        ${renderGalleryImagesHTML()}
+                    </div>
+                </div>
+                
+                <div class="sticky bottom-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-t border-gray-200 dark:border-white/10 p-4 -mx-6 -mb-6 mt-4 flex justify-end">
+                    <button type="button" onclick="closeModal()" class="px-6 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mr-4 transition-colors">Cancel</button>
+                    <button type="submit" class="px-6 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-medium transition-all shadow-lg shadow-brand-500/30 glow-btn">Save Gallery</button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    activeModal = modal;
+    render();
+}
+
+function saveGallery(e, editId) {
+    e.preventDefault();
+    const db = getDB();
+    const title = document.getElementById('galleryTitle').value;
+    
+    if (editId) {
+        const galleryObj = db.galleries.find(g => g.id === editId);
+        galleryObj.title = title;
+        galleryObj.images = window._tempGalleryImages;
+    } else {
+        db.galleries.push({ id: generateId(), title, images: window._tempGalleryImages });
+    }
+    
+    saveDB(db);
+    closeModal();
+    render();
+}
+
+function deleteGallery(id) {
+    if (confirm('Are you sure you want to delete this gallery?')) {
+        const db = getDB();
+        db.galleries = db.galleries.filter(g => g.id !== id);
+        saveDB(db);
+        render();
+    }
+}
+
 // Manual sync to cloud button logic
 window.manualCloudSync = () => {
     const db = getDB();
@@ -1175,7 +1382,17 @@ window.manualCloudSync = () => {
 };
 
 // Ensure the initial render runs after Firebase data is loaded
-window.dataInitialized.then(() => {
+if (window.dataInitialized) {
+    window.dataInitialized.then(() => {
+        window.appReady = true;
+        render();
+    }).catch(err => {
+        console.error("Failed to initialize data:", err);
+        window.appReady = true;
+        render(); // Try rendering with default/local data
+    });
+} else {
+    console.error("Data initialization script (data.js) failed to load.");
     window.appReady = true;
-    render();
-});
+    render(); // Try rendering anyway (will use default data if defined in app.js scope, but it's not)
+}
