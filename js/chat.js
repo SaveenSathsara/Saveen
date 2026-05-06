@@ -7,11 +7,6 @@ let activeChatUser = null;
 let chatMessagesRef = null;
 let isChatOpen = false;
 let isChatUnlocked = false; // PIN lock status
-let pc = null; // RTCPeerConnection
-let localStream = null;
-let currentCall = null;
-
-const CHAT_UNLOCK_PIN = "750711";
 
 function initChat() {
     // Permission Check: Only for logged in users with chatEnabled
@@ -22,6 +17,22 @@ function initChat() {
     }
 
     if (document.getElementById('chat-widget-container')) return;
+
+    // Presence Tracking
+    const presenceRef = firebase.database().ref(`website/presence/${currentUser.id}`);
+    const connectionRef = firebase.database().ref('.info/connected');
+    connectionRef.on('value', (snap) => {
+        if (snap.val() === true) {
+            presenceRef.onDisconnect().set({
+                status: 'offline',
+                lastSeen: firebase.database.ServerValue.TIMESTAMP
+            });
+            presenceRef.set({
+                status: 'online',
+                lastSeen: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+    });
 
     const container = document.createElement('div');
     container.id = 'chat-widget-container';
@@ -39,7 +50,7 @@ function initChat() {
                     <i class="fas fa-lock text-white text-2xl"></i>
                 </div>
                 <h3 class="text-xl font-bold mb-2">Chat Locked</h3>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Enter PIN to unlock chat</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Enter your Chat PIN to unlock</p>
                 <input type="password" id="chat-pin-input" maxlength="6" class="w-full text-center text-2xl tracking-[1em] py-3 rounded-xl bg-gray-100 dark:bg-slate-800 border-none focus:ring-2 focus:ring-brand-500 mb-4" placeholder="••••••">
                 <div id="pin-error" class="text-red-500 text-xs mb-4 hidden">Invalid PIN! Try again.</div>
                 <button onclick="verifyChatPin()" class="w-full bg-brand-600 text-white font-bold py-3 rounded-xl hover:bg-brand-500 transition-colors">Unlock</button>
@@ -49,7 +60,6 @@ function initChat() {
 
         <!-- Chat Window -->
         <div id="chat-window" class="chat-window hidden glass-panel border-none">
-            <!-- Header, Body, Footer same as before -->
             <div id="chat-header" class="p-4 bg-brand-600 text-white flex justify-between items-center">
                 <div class="flex items-center gap-3">
                     <button id="chat-back-btn" onclick="showContacts()" class="hidden"><i class="fas fa-arrow-left"></i></button>
@@ -57,13 +67,11 @@ function initChat() {
                         <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center font-bold">S</div>
                         <div>
                             <div class="font-bold text-sm">Messages</div>
-                            <div class="text-[10px] opacity-80">Online</div>
+                            <div class="text-[10px] opacity-80">Loading...</div>
                         </div>
                     </div>
                 </div>
                 <div class="flex items-center gap-3">
-                    <button onclick="startCall('audio')" class="hover:text-gray-200 transition-colors"><i class="fas fa-phone-alt"></i></button>
-                    <button onclick="startCall('video')" class="hover:text-gray-200 transition-colors"><i class="fas fa-video"></i></button>
                     <button onclick="toggleChat()" class="hover:text-gray-200 transition-colors ml-1"><i class="fas fa-times"></i></button>
                 </div>
             </div>
@@ -79,32 +87,9 @@ function initChat() {
                 </form>
             </div>
         </div>
-        <!-- ... Call Overlay same as before ... -->
-        <div id="call-overlay" class="call-overlay hidden">
-            <div id="video-ui" class="video-container hidden">
-                <video id="remoteVideo" autoplay playsinline></video>
-                <video id="localVideo" autoplay playsinline muted></video>
-            </div>
-            
-            <div id="call-info" class="text-center flex flex-col items-center">
-                <div id="call-avatar" class="w-24 h-24 rounded-full bg-brand-500 flex items-center justify-center text-4xl font-bold mb-4 shadow-2xl">U</div>
-                <h2 id="call-name" class="text-2xl font-bold mb-2">User Name</h2>
-                <p id="call-status" class="text-gray-400">Calling...</p>
-            </div>
-
-            <div class="flex gap-10 items-center">
-                <button id="decline-btn" onclick="endCall()" class="call-btn decline shadow-lg shadow-red-500/30">
-                    <i class="fas fa-phone-slash"></i>
-                </button>
-                <button id="accept-btn" onclick="answerCall()" class="call-btn accept shadow-lg shadow-green-500/30 hidden">
-                    <i class="fas fa-phone"></i>
-                </button>
-            </div>
-        </div>
     `;
     document.body.appendChild(container);
     showContacts();
-    listenForCalls();
 }
 
 // Configuration for WebRTC
@@ -128,7 +113,7 @@ function verifyChatPin() {
     const pinInput = document.getElementById('chat-pin-input');
     const errorEl = document.getElementById('pin-error');
     
-    if (pinInput.value === CHAT_UNLOCK_PIN) {
+    if (pinInput.value === currentUser.chatPin) {
         isChatUnlocked = true;
         closePinModal();
         toggleChat();
@@ -189,15 +174,38 @@ function showContacts() {
                     ? `<img src="${u.profilePic}" class="w-12 h-12 rounded-full object-cover">` 
                     : `<div class="w-12 h-12 rounded-full bg-gradient-to-tr from-brand-500 to-purple-500 flex items-center justify-center text-white font-bold">${u.username.charAt(0).toUpperCase()}</div>`
                 }
-                <div class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></div>
+                <div id="status-dot-${u.id}" class="absolute bottom-0 right-0 w-3 h-3 bg-gray-400 border-2 border-white dark:border-slate-900 rounded-full"></div>
             </div>
             <div class="flex-grow">
-                <div class="font-bold text-gray-900 dark:text-white text-sm">${u.username}</div>
-                <div class="text-xs text-gray-500 dark:text-gray-400 truncate">Click to chat</div>
+                <div class="flex justify-between items-center">
+                    <div class="font-bold text-gray-900 dark:text-white text-sm">${u.username}</div>
+                    <div class="text-[10px] text-brand-600 font-mono">#${u.chatNumber || '00000'}</div>
+                </div>
+                <div id="status-text-${u.id}" class="text-xs text-gray-500 dark:text-gray-400 truncate">Loading status...</div>
             </div>
-            <div class="text-[10px] text-gray-400">Online</div>
         </div>
     `).join('');
+
+    // Listen for presence for each user
+    users.forEach(u => {
+        firebase.database().ref(`website/presence/${u.id}`).on('value', (snap) => {
+            const data = snap.val();
+            const dot = document.getElementById(`status-dot-${u.id}`);
+            const text = document.getElementById(`status-text-${u.id}`);
+            if (!dot || !text) return;
+
+            if (data && data.status === 'online') {
+                dot.classList.replace('bg-gray-400', 'bg-green-500');
+                text.innerText = 'Online';
+                text.classList.add('text-green-500');
+            } else {
+                dot.classList.replace('bg-green-500', 'bg-gray-400');
+                const lastSeen = data ? new Date(data.lastSeen).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) : 'Long ago';
+                text.innerText = `Last seen: ${lastSeen}`;
+                text.classList.remove('text-green-500');
+            }
+        });
+    });
 }
 
 function openChat(userId) {
@@ -220,10 +228,26 @@ function openChat(userId) {
             : `<div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center font-bold">${user.username.charAt(0).toUpperCase()}</div>`
         }
         <div>
-            <div class="font-bold text-sm">${user.username}</div>
-            <div id="chat-online-status" class="text-[10px] opacity-80">Online</div>
+            <div class="font-bold text-sm flex items-center gap-2">
+                ${user.username}
+                <span class="text-[9px] bg-white/20 px-1.5 py-0.5 rounded font-mono">#${user.chatNumber || '00000'}</span>
+            </div>
+            <div id="chat-online-status" class="text-[10px] opacity-80">Checking...</div>
         </div>
     `;
+
+    // Listen for presence for active chat user
+    firebase.database().ref(`website/presence/${user.id}`).on('value', (snap) => {
+        const data = snap.val();
+        const statusEl = document.getElementById('chat-online-status');
+        if (!statusEl) return;
+        if (data && data.status === 'online') {
+            statusEl.innerText = 'Online';
+        } else {
+            const lastSeen = data ? new Date(data.lastSeen).toLocaleString([], {hour: '2-digit', minute:'2-digit'}) : 'offline';
+            statusEl.innerText = `Last seen: ${lastSeen}`;
+        }
+    });
 
     body.innerHTML = `<div class="flex-grow flex items-center justify-center"><i class="fas fa-spinner fa-spin text-brand-500"></i></div>`;
 
@@ -280,237 +304,9 @@ function handleSendMessage(e) {
     input.value = '';
 }
 
-// --- CALLING LOGIC ---
+// --- CHAT LOGIC ---
 
-async function startCall(type) {
-    if (!activeChatUser || !currentUser) return;
-    
-    const callOverlay = document.getElementById('call-overlay');
-    const callName = document.getElementById('call-name');
-    const callStatus = document.getElementById('call-status');
-    const callAvatar = document.getElementById('call-avatar');
-    
-    callOverlay.classList.remove('hidden');
-    callName.innerText = activeChatUser.username;
-    callStatus.innerText = `Ringing...`;
-    callAvatar.innerText = activeChatUser.username.charAt(0).toUpperCase();
-
-    // Initialize WebRTC
-    pc = new RTCPeerConnection(iceServers);
-    
-    // Get Local Stream
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({ 
-            audio: true, 
-            video: type === 'video' 
-        });
-        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-        
-        if (type === 'video') {
-            document.getElementById('video-ui').classList.remove('hidden');
-            document.getElementById('localVideo').srcObject = localStream;
-        }
-    } catch (err) {
-        console.error("Media access error:", err);
-        alert("Could not access camera/microphone.");
-        endCall();
-        return;
-    }
-
-    // Remote Stream
-    pc.ontrack = (event) => {
-        document.getElementById('video-ui').classList.remove('hidden');
-        document.getElementById('remoteVideo').srcObject = event.streams[0];
-    };
-
-    // Ice Candidates
-    const callId = [currentUser.id, activeChatUser.id].sort().join('_');
-    const callRef = firebase.database().ref(`website/calls/${callId}`);
-    
-    pc.onicecandidate = (event) => {
-        if (event.candidate) {
-            callRef.child('candidates').push({
-                candidate: event.candidate.toJSON(),
-                sender: currentUser.id
-            });
-        }
-    };
-
-    // Create Offer
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-
-    await callRef.set({
-        caller: currentUser.id,
-        callerName: currentUser.username,
-        receiver: activeChatUser.id,
-        type: type,
-        offer: {
-            type: offer.type,
-            sdp: offer.sdp
-        },
-        status: 'calling',
-        timestamp: Date.now()
-    });
-
-    // Listen for Answer
-    callRef.on('value', async (snap) => {
-        const data = snap.val();
-        if (data && data.answer && !pc.currentRemoteDescription) {
-            const answerDesc = new RTCSessionDescription(data.answer);
-            await pc.setRemoteDescription(answerDesc);
-            callStatus.innerText = 'Connected';
-        }
-        if (data && data.status === 'ended') {
-            endCall();
-        }
-    });
-
-    // Listen for remote ice candidates
-    callRef.child('candidates').on('child_added', (snap) => {
-        const data = snap.val();
-        if (data && data.sender !== currentUser.id) {
-            pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-        }
-    });
-
-    currentCall = callRef;
-}
-
-function listenForCalls() {
-    if (!currentUser) return;
-
-    firebase.database().ref('website/calls').on('child_added', (snap) => {
-        const call = snap.val();
-        if (call && call.receiver === currentUser.id && call.status === 'calling') {
-            showIncomingCall(call, snap.ref);
-        }
-    });
-    
-    // Also listen for changes to existing calls (e.g. if caller cancels)
-    firebase.database().ref('website/calls').on('child_changed', (snap) => {
-        const call = snap.val();
-        if (call && call.receiver === currentUser.id && call.status === 'ended') {
-            endCall();
-        }
-    });
-}
-
-function showIncomingCall(call, ref) {
-    const callOverlay = document.getElementById('call-overlay');
-    const callName = document.getElementById('call-name');
-    const callStatus = document.getElementById('call-status');
-    const acceptBtn = document.getElementById('accept-btn');
-    const callAvatar = document.getElementById('call-avatar');
-    
-    currentCall = ref;
-    callOverlay.classList.remove('hidden');
-    acceptBtn.classList.remove('hidden');
-    callName.innerText = call.callerName;
-    callStatus.innerText = `Incoming ${call.type} call...`;
-    callAvatar.innerText = call.callerName.charAt(0).toUpperCase();
-
-    // Play Ringtone logic could go here
-}
-
-async function answerCall() {
-    const callOverlay = document.getElementById('call-overlay');
-    const callStatus = document.getElementById('call-status');
-    const acceptBtn = document.getElementById('accept-btn');
-    
-    acceptBtn.classList.add('hidden');
-    callStatus.innerText = 'Connecting...';
-
-    const snap = await currentCall.once('value');
-    const callData = snap.val();
-
-    pc = new RTCPeerConnection(iceServers);
-
-    // Get Local Stream
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({ 
-            audio: true, 
-            video: callData.type === 'video' 
-        });
-        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-        
-        if (callData.type === 'video') {
-            document.getElementById('video-ui').classList.remove('hidden');
-            document.getElementById('localVideo').srcObject = localStream;
-        }
-    } catch (err) {
-        console.error("Media access error:", err);
-        endCall();
-        return;
-    }
-
-    pc.ontrack = (event) => {
-        document.getElementById('video-ui').classList.remove('hidden');
-        document.getElementById('remoteVideo').srcObject = event.streams[0];
-    };
-
-    pc.onicecandidate = (event) => {
-        if (event.candidate) {
-            currentCall.child('candidates').push({
-                candidate: event.candidate.toJSON(),
-                sender: currentUser.id
-            });
-        }
-    };
-
-    // Remote Offer
-    await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
-
-    // Create Answer
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    await currentCall.update({
-        answer: {
-            type: answer.type,
-            sdp: answer.sdp
-        },
-        status: 'connected'
-    });
-
-    // Listen for remote ice candidates
-    currentCall.child('candidates').on('child_added', (snap) => {
-        const data = snap.val();
-        if (data && data.sender !== currentUser.id) {
-            pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-        }
-    });
-
-    callStatus.innerText = 'Connected';
-}
-
-function endCall() {
-    if (pc) {
-        pc.close();
-        pc = null;
-    }
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
-    }
-    if (currentCall) {
-        currentCall.update({ status: 'ended' });
-        // Optionally delete the call after some time
-        setTimeout(() => currentCall.remove(), 2000);
-        currentCall = null;
-    }
-
-    document.getElementById('call-overlay').classList.add('hidden');
-    document.getElementById('video-ui').classList.add('hidden');
-    document.getElementById('accept-btn').classList.add('hidden');
-    document.getElementById('remoteVideo').srcObject = null;
-    document.getElementById('localVideo').srcObject = null;
-}
-
-// Export to window
 // Audio assets
-const ringtone = new Audio('https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3');
-ringtone.loop = true;
 const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
 
 function playMsgSound() {
@@ -553,40 +349,6 @@ function renderMessages(messages) {
     body.scrollTop = body.scrollHeight;
 }
 
-// Update showIncomingCall and endCall for ringtone
-function showIncomingCall(call, ref) {
-    const callOverlay = document.getElementById('call-overlay');
-    const callName = document.getElementById('call-name');
-    const callStatus = document.getElementById('call-status');
-    const acceptBtn = document.getElementById('accept-btn');
-    const callAvatar = document.getElementById('call-avatar');
-    
-    currentCall = ref;
-    callOverlay.classList.remove('hidden');
-    acceptBtn.classList.remove('hidden');
-    callName.innerText = call.callerName;
-    callStatus.innerText = `Incoming ${call.type} call...`;
-    callAvatar.innerText = call.callerName.charAt(0).toUpperCase();
-
-    ringtone.play().catch(e => console.log("Ringtone blocked"));
-}
-
-// Update endCall to stop ringtone
-const originalEndCall = endCall;
-function endCall() {
-    ringtone.pause();
-    ringtone.currentTime = 0;
-    originalEndCall();
-}
-
-// Update answerCall to stop ringtone
-const originalAnswerCall = answerCall;
-async function answerCall() {
-    ringtone.pause();
-    ringtone.currentTime = 0;
-    await originalAnswerCall();
-}
-
 function resetChatLock() {
     isChatUnlocked = false;
     isChatOpen = false;
@@ -604,9 +366,6 @@ window.resetChatLock = resetChatLock;
 window.showContacts = showContacts;
 window.openChat = openChat;
 window.handleSendMessage = handleSendMessage;
-window.startCall = startCall;
-window.answerCall = answerCall;
-window.endCall = endCall;
 window.initChat = initChat;
 Object.defineProperty(window, 'isChatOpen', { get: () => isChatOpen });
 Object.defineProperty(window, 'isChatUnlocked', { get: () => isChatUnlocked });

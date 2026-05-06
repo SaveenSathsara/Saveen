@@ -200,58 +200,6 @@ th, td {
     color: white;
 }
 
-.call-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 2000;
-    background: #0f172a;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-around;
-    color: white;
-}
-
-.call-btn {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    display: flex;
-    items-center;
-    justify-content: center;
-    font-size: 24px;
-    transition: all 0.2s;
-}
-
-.call-btn.accept { background: #22c55e; }
-.call-btn.decline { background: #ef4444; }
-.call-btn:hover { transform: scale(1.1); }
-
-.video-container {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    background: #000;
-}
-
-#remoteVideo {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-#localVideo {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    width: 120px;
-    height: 160px;
-    border-radius: 12px;
-    object-fit: cover;
-    border: 2px solid white;
-    z-index: 10;
-}
-
 @media (max-width: 480px) {
     .chat-window {
         width: calc(100% - 32px);

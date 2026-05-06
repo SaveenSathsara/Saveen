@@ -588,12 +588,20 @@ function renderAdminUsers() {
 
 function openUserModal(userId = null) {
     const db = getDB();
-    let user = { id: '', username: '', pin: '', role: 'user', assignedPageIds: [], profilePic: '' };
+    let user = { id: '', username: '', pin: '', role: 'user', assignedPageIds: [], profilePic: '', chatEnabled: true, chatNumber: '', chatPin: '' };
     let isEdit = false;
     
     if (userId) {
         user = db.users.find(u => u.id === userId);
         isEdit = true;
+    }
+
+    // Auto-generate missing fields for existing users if needed
+    if (!user.chatNumber) {
+        user.chatNumber = Math.floor(10000 + Math.random() * 90000).toString();
+    }
+    if (!user.chatPin) {
+        user.chatPin = "750711"; // Default as requested
     }
     
     let pageOptions = '';
@@ -605,21 +613,33 @@ function openUserModal(userId = null) {
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 z-[100] flex items-center justify-center modal-overlay fade-in p-4';
     modal.innerHTML = `
-        <div class="glass-panel w-full max-w-md rounded-2xl p-6 md:p-8 slide-up relative">
+        <div class="glass-panel w-full max-w-md rounded-2xl p-6 md:p-8 slide-up relative max-h-[90vh] overflow-y-auto custom-scrollbar">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-2xl font-bold text-gray-900 dark:text-white">${isEdit ? 'Edit User' : 'Create New User'}</h3>
                 <button onclick="closeModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
             </div>
             
             <form onsubmit="saveUser(event, '${userId || ''}')" class="space-y-5">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
-                    <input type="text" id="userUsername" value="${user.username}" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" ${user.username === 'saveen' ? 'readonly opacity-50 bg-gray-100 dark:bg-slate-800' : ''}>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
+                        <input type="text" id="userUsername" value="${user.username}" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" ${user.username === 'saveen' ? 'readonly opacity-50 bg-gray-100 dark:bg-slate-800' : ''}>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">System PIN</label>
+                        <input type="text" id="userPin" value="${user.pin}" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500">
+                    </div>
                 </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">PIN</label>
-                    <input type="text" id="userPin" value="${user.pin}" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500">
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chat Number (Auto)</label>
+                        <input type="text" id="userChatNumber" value="${user.chatNumber}" readonly class="glass-input w-full px-4 py-3 rounded-xl bg-gray-100 dark:bg-slate-800 opacity-70 cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chat PIN</label>
+                        <input type="text" id="userChatPin" value="${user.chatPin}" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500">
+                    </div>
                 </div>
                 
                 <div>
@@ -638,11 +658,10 @@ function openUserModal(userId = null) {
                 ` : '<input type="hidden" id="userRole" value="admin">'}
                 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Pages (Hold Ctrl to select multiple)</label>
-                    <select id="userAssignedPages" multiple class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 dark:[&>option]:bg-slate-800 min-h-[120px]">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assigned Pages</label>
+                    <select id="userAssignedPages" multiple class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 dark:[&>option]:bg-slate-800 min-h-[100px]">
                         ${pageOptions}
                     </select>
-                    <p class="text-[10px] text-gray-500 mt-1">Users will be able to see all selected pages after login.</p>
                 </div>
 
                 <div class="bg-gray-50 dark:bg-slate-800/50 p-4 rounded-xl border border-gray-200 dark:border-white/5">
@@ -650,13 +669,13 @@ function openUserModal(userId = null) {
                         <input type="checkbox" id="userChatEnabled" ${user.chatEnabled !== false ? 'checked' : ''} class="w-5 h-5 text-brand-500 bg-white dark:bg-slate-800 border-gray-300 dark:border-gray-600 rounded focus:ring-brand-500">
                         <div>
                             <span class="text-sm font-bold text-gray-700 dark:text-gray-300">Enable Chat Feature</span>
-                            <p class="text-[10px] text-gray-500">Allow this user to use the WhatsApp-like chat and call feature.</p>
+                            <p class="text-[10px] text-gray-500">Allow this user to use the WhatsApp-like chat feature.</p>
                         </div>
                     </label>
                 </div>
                 
-                <div class="sticky bottom-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-t border-gray-200 dark:border-white/10 p-4 -mx-6 -mb-6 mt-4 flex justify-end">
-                    <button type="button" onclick="closeModal()" class="px-6 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mr-4 transition-colors">Cancel</button>
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
+                    <button type="button" onclick="closeModal()" class="px-6 py-2 rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Cancel</button>
                     <button type="submit" class="px-6 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-medium transition-all shadow-lg shadow-brand-500/30 glow-btn">Save User</button>
                 </div>
             </form>
@@ -672,6 +691,8 @@ function saveUser(e, editId) {
     const db = getDB();
     const username = document.getElementById('userUsername').value;
     const pin = document.getElementById('userPin').value;
+    const chatPin = document.getElementById('userChatPin').value;
+    const chatNumber = document.getElementById('userChatNumber').value;
     const role = document.getElementById('userRole').value;
     const profilePic = document.getElementById('userProfilePic').value;
     const assignedPagesSelect = document.getElementById('userAssignedPages');
@@ -682,6 +703,8 @@ function saveUser(e, editId) {
         const userObj = db.users.find(u => u.id === editId);
         userObj.username = username;
         userObj.pin = pin;
+        userObj.chatPin = chatPin;
+        userObj.chatNumber = chatNumber;
         if (userObj.username !== 'saveen') {
             userObj.role = role;
         }
@@ -693,7 +716,17 @@ function saveUser(e, editId) {
             alert('Username already exists!');
             return;
         }
-        db.users.push({ id: generateId(), username, pin, role, profilePic, assignedPageIds, chatEnabled });
+        db.users.push({ 
+            id: generateId(), 
+            username, 
+            pin, 
+            chatPin,
+            chatNumber,
+            role, 
+            profilePic, 
+            assignedPageIds, 
+            chatEnabled 
+        });
     }
     
     saveDB(db);
