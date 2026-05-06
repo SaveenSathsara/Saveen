@@ -1199,6 +1199,8 @@ function createPublicPageView() {
     return div;
 }
 
+let userSubTab = 'pages'; // pages, profile
+
 // ---------------- User View ----------------
 function createUserView() {
     const div = document.createElement('div');
@@ -1207,8 +1209,65 @@ function createUserView() {
     const db = getDB();
     const assignedIds = currentUser.assignedPageIds || [];
     
-    if (assignedIds.length === 0) {
-        div.innerHTML = `
+    // Sidebar for page selection and profile
+    const sidebar = document.createElement('div');
+    sidebar.className = 'w-full md:w-64 shrink-0';
+    
+    let sidebarHtml = `
+        <div class="glass-panel p-6 rounded-2xl sticky top-28">
+            <div class="mb-8 px-2 flex flex-col items-center text-center">
+                <div class="relative group cursor-pointer mb-4" onclick="switchUserTab('profile')">
+                    ${currentUser.profilePic 
+                        ? `<img src="${currentUser.profilePic}" class="w-20 h-20 rounded-full object-cover shadow-xl border-4 border-white dark:border-slate-800 group-hover:opacity-80 transition-opacity">`
+                        : `<div class="w-20 h-20 rounded-full bg-gradient-to-tr from-brand-500 to-purple-500 flex items-center justify-center text-white text-2xl font-bold shadow-xl border-4 border-white dark:border-slate-800 group-hover:opacity-80 transition-opacity">${currentUser.username.charAt(0).toUpperCase()}</div>`
+                    }
+                    <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="fas fa-camera text-white drop-shadow-md"></i>
+                    </div>
+                </div>
+                <h4 class="font-bold text-gray-900 dark:text-white truncate w-full">${currentUser.username}</h4>
+                <p class="text-[10px] text-gray-500 dark:text-gray-400 font-mono">#${currentUser.chatNumber || '00000'}</p>
+            </div>
+
+            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 px-2">Dashboard</h3>
+            <div class="space-y-1 mb-6">
+                <button onclick="switchUserTab('profile')" class="w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${userSubTab === 'profile' ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/30' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'}">
+                    <i class="fas fa-user-circle"></i>
+                    <span class="font-medium text-sm">Profile Settings</span>
+                </button>
+            </div>
+
+            <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 px-2">Assigned Pages</h3>
+            <div class="space-y-1">
+    `;
+    
+    if (assignedIds.length === 0 && userSubTab === 'pages') {
+        sidebarHtml += `<p class="text-xs text-gray-400 px-2 italic">No pages assigned</p>`;
+    } else {
+        assignedIds.forEach(pid => {
+            const p = db.pages.find(pg => pg.id === pid);
+            if (p) {
+                const isActive = userSubTab === 'pages' && activeUserPageId === pid;
+                sidebarHtml += `
+                    <button onclick="switchUserPage('${pid}')" class="w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${isActive ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/30' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'}">
+                        <i class="fas ${isActive ? 'fa-file-alt' : 'fa-file'}"></i>
+                        <span class="font-medium text-sm truncate">${p.title}</span>
+                    </button>
+                `;
+            }
+        });
+    }
+    
+    sidebarHtml += `</div></div>`;
+    sidebar.innerHTML = sidebarHtml;
+    
+    const contentArea = document.createElement('div');
+    contentArea.className = 'flex-grow';
+    
+    if (userSubTab === 'profile') {
+        contentArea.appendChild(renderUserProfileSettings());
+    } else if (assignedIds.length === 0) {
+        contentArea.innerHTML = `
             <div class="glass-panel p-10 rounded-3xl text-center max-w-2xl mx-auto w-full mt-10">
                 <div class="w-20 h-20 bg-yellow-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
                     <i class="fas fa-exclamation-triangle text-3xl text-yellow-500"></i>
@@ -1217,56 +1276,23 @@ function createUserView() {
                 <p class="text-gray-600 dark:text-gray-400">Please contact the administrator to assign pages to your account.</p>
             </div>
         `;
-        return div;
-    }
-    
-    // Ensure activeUserPageId is valid
-    if (!activeUserPageId || !assignedIds.includes(activeUserPageId)) {
-        activeUserPageId = assignedIds[0];
-    }
-    
-    const page = db.pages.find(p => p.id === activeUserPageId);
-    
-    // Sidebar for page selection
-    const sidebar = document.createElement('div');
-    sidebar.className = 'w-full md:w-64 shrink-0';
-    
-    let sidebarHtml = `
-        <div class="glass-panel p-6 rounded-2xl sticky top-28">
-            <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 px-2">My Assigned Pages</h3>
-            <div class="space-y-1">
-    `;
-    
-    assignedIds.forEach(pid => {
-        const p = db.pages.find(pg => pg.id === pid);
-        if (p) {
-            const isActive = activeUserPageId === pid;
-            sidebarHtml += `
-                <button onclick="switchUserPage('${pid}')" class="w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${isActive ? 'bg-brand-600 text-white shadow-lg shadow-brand-500/30' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'}">
-                    <i class="fas ${isActive ? 'fa-file-alt' : 'fa-file'}"></i>
-                    <span class="font-medium">${p.title}</span>
-                </button>
+    } else {
+        if (!activeUserPageId || !assignedIds.includes(activeUserPageId)) {
+            activeUserPageId = assignedIds[0];
+        }
+        const page = db.pages.find(p => p.id === activeUserPageId);
+        if (!page) {
+            contentArea.innerHTML = `<div class="text-center text-gray-900 dark:text-gray-400 mt-10 text-2xl">Page not found</div>`;
+        } else {
+            const content = parsePageContent(page.content);
+            contentArea.innerHTML = `
+                <div class="prose prose-lg dark:prose-invert max-w-none w-full bg-white/80 dark:bg-white/[0.01] p-8 md:p-12 rounded-3xl border border-gray-200 dark:border-white/5 backdrop-blur-sm shadow-2xl relative">
+                    <div class="absolute -top-40 -right-40 w-80 h-80 bg-brand-300 dark:bg-brand-600 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 pointer-events-none"></div>
+                    <h1 class="text-4xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-purple-600 dark:from-brand-400 dark:to-purple-500">${page.title}</h1>
+                    ${content}
+                </div>
             `;
         }
-    });
-    
-    sidebarHtml += `</div></div>`;
-    sidebar.innerHTML = sidebarHtml;
-    
-    const contentArea = document.createElement('div');
-    contentArea.className = 'flex-grow';
-    
-    if (!page) {
-        contentArea.innerHTML = `<div class="text-center text-gray-900 dark:text-gray-400 mt-10 text-2xl">Page not found</div>`;
-    } else {
-        const content = parsePageContent(page.content);
-        contentArea.innerHTML = `
-            <div class="prose prose-lg dark:prose-invert max-w-none w-full bg-white/80 dark:bg-white/[0.01] p-8 md:p-12 rounded-3xl border border-gray-200 dark:border-white/5 backdrop-blur-sm shadow-2xl relative">
-                <div class="absolute -top-40 -right-40 w-80 h-80 bg-brand-300 dark:bg-brand-600 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 pointer-events-none"></div>
-                <h1 class="text-4xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-purple-600 dark:from-brand-400 dark:to-purple-500">${page.title}</h1>
-                ${content}
-            </div>
-        `;
     }
     
     div.appendChild(sidebar);
@@ -1275,7 +1301,166 @@ function createUserView() {
     return div;
 }
 
+function renderUserProfileSettings() {
+    const div = document.createElement('div');
+    div.className = 'glass-panel p-8 md:p-12 rounded-3xl border border-gray-200 dark:border-white/5 backdrop-blur-sm shadow-2xl relative overflow-hidden';
+    
+    div.innerHTML = `
+        <div class="absolute -top-40 -right-40 w-80 h-80 bg-brand-300 dark:bg-brand-600 rounded-full mix-blend-multiply filter blur-[100px] opacity-20 pointer-events-none"></div>
+        <h2 class="text-3xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-purple-600 dark:from-brand-400 dark:to-purple-500">Profile Settings</h2>
+        
+        <form onsubmit="saveUserProfile(event)" class="space-y-8 max-w-xl">
+            <div class="flex flex-col md:flex-row items-center gap-8 mb-8">
+                <div class="relative group">
+                    <img id="profilePreview" src="${currentUser.profilePic || 'https://via.placeholder.com/150'}" class="w-32 h-32 rounded-full object-cover shadow-2xl border-4 border-white dark:border-slate-800">
+                    <div class="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer" onclick="openGalleryPicker()">
+                        <i class="fas fa-edit text-white text-xl"></i>
+                    </div>
+                </div>
+                <div class="flex-grow space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Profile Picture</label>
+                        <div class="flex flex-wrap gap-2">
+                            <input type="text" id="profileUrlInput" value="${currentUser.profilePic || ''}" class="glass-input flex-grow px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 min-w-[200px]" placeholder="Image URL" oninput="document.getElementById('profilePreview').src = this.value || 'https://via.placeholder.com/150'">
+                            <div class="flex gap-2 w-full sm:w-auto">
+                                <button type="button" onclick="document.getElementById('profileFileInput').click()" class="flex-grow sm:flex-none px-4 py-2 rounded-xl bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 hover:bg-brand-200 dark:hover:bg-brand-500/30 transition-colors flex items-center justify-center gap-2">
+                                    <i class="fas fa-upload"></i> Browse
+                                </button>
+                                <button type="button" onclick="openGalleryPicker()" class="flex-grow sm:flex-none px-4 py-2 rounded-xl bg-gray-200 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
+                                    <i class="fas fa-images"></i> Gallery
+                                </button>
+                            </div>
+                            <input type="file" id="profileFileInput" class="hidden" accept="image/*" onchange="handleProfileUpload(this)">
+                        </div>
+                        <p class="text-[10px] text-gray-500 mt-2 italic">Upload a photo, select from gallery, or paste a URL.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
+                    <input type="text" id="profileUsername" value="${currentUser.username}" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" ${currentUser.username === 'saveen' ? 'readonly opacity-50' : ''}>
+                    ${currentUser.username === 'saveen' ? '<p class="text-[10px] text-red-500 mt-1">Admin username cannot be changed.</p>' : ''}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chat PIN</label>
+                    <input type="text" id="profileChatPin" value="${currentUser.chatPin || '750711'}" required maxlength="6" class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500">
+                </div>
+            </div>
+
+            <div class="pt-6 border-t border-gray-100 dark:border-white/5 flex justify-end">
+                <button type="submit" class="px-8 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold transition-all shadow-xl shadow-brand-500/30 glow-btn flex items-center gap-2">
+                    <i class="fas fa-save"></i> Save Changes
+                </button>
+            </div>
+        </form>
+    `;
+    return div;
+}
+
+function openGalleryPicker() {
+    const db = getDB();
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[200] flex items-center justify-center modal-overlay fade-in p-4';
+    
+    let galleriesHtml = '';
+    db.galleries.forEach(g => {
+        galleriesHtml += `
+            <div class="mb-6">
+                <h4 class="text-sm font-bold text-gray-500 mb-3 px-1">${g.title}</h4>
+                <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                    ${(g.images || []).map(img => `
+                        <div class="aspect-square rounded-lg overflow-hidden cursor-pointer hover:ring-4 hover:ring-brand-500 transition-all group relative" onclick="selectGalleryImage('${img.url}')">
+                            <img src="${img.url}" class="w-full h-full object-cover">
+                            <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                <i class="fas fa-check text-white"></i>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    });
+
+    if (db.galleries.length === 0) {
+        galleriesHtml = '<div class="text-center py-10 text-gray-500">No images available in gallery. Please add some first.</div>';
+    }
+
+    modal.innerHTML = `
+        <div class="glass-panel w-full max-w-4xl rounded-3xl p-8 slide-up relative max-h-[85vh] flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Select from Gallery</h3>
+                <button onclick="closeSubModal()" class="text-gray-500 hover:text-gray-900"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div class="flex-grow overflow-y-auto custom-scrollbar pr-2">
+                ${galleriesHtml}
+            </div>
+        </div>
+    `;
+    
+    window._activeSubModal = modal;
+    document.getElementById('app').appendChild(modal);
+}
+
+window.closeSubModal = () => {
+    if (window._activeSubModal) {
+        window._activeSubModal.remove();
+        window._activeSubModal = null;
+    }
+};
+
+window.selectGalleryImage = (url) => {
+    document.getElementById('profileUrlInput').value = url;
+    document.getElementById('profilePreview').src = url;
+    closeSubModal();
+};
+
+window.handleProfileUpload = (input) => {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('profilePreview').src = e.target.result;
+            document.getElementById('profileUrlInput').value = e.target.result;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+};
+
+function saveUserProfile(e) {
+    e.preventDefault();
+    const newUsername = document.getElementById('profileUsername').value;
+    const newUrl = document.getElementById('profileUrlInput').value;
+    const newChatPin = document.getElementById('profileChatPin').value;
+    
+    const db = getDB();
+    const userIndex = db.users.findIndex(u => u.id === currentUser.id);
+    
+    if (userIndex !== -1) {
+        // Check if username is taken by someone else
+        if (newUsername !== currentUser.username && db.users.find(u => u.username === newUsername)) {
+            alert('Username already taken!');
+            return;
+        }
+
+        db.users[userIndex].username = newUsername;
+        db.users[userIndex].profilePic = newUrl;
+        db.users[userIndex].chatPin = newChatPin;
+        
+        currentUser = db.users[userIndex]; // Update current user state
+        saveDB(db);
+        alert('Profile updated successfully!');
+        render();
+    }
+}
+
+window.switchUserTab = (tab) => {
+    userSubTab = tab;
+    render();
+};
+
 window.switchUserPage = (pageId) => {
+    userSubTab = 'pages';
     activeUserPageId = pageId;
     render();
 };
