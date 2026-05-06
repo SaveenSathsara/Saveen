@@ -1343,10 +1343,12 @@ function renderUserProfileSettings() {
                     <input type="text" id="profileUsername" value="${currentUser.username}" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" ${currentUser.username === 'saveen' ? 'readonly opacity-50' : ''}>
                     ${currentUser.username === 'saveen' ? '<p class="text-[10px] text-red-500 mt-1">Admin username cannot be changed.</p>' : ''}
                 </div>
+                ${currentUser.role === 'admin' ? `
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Chat PIN</label>
                     <input type="text" id="profileChatPin" value="${currentUser.chatPin || '750711'}" required maxlength="6" class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500">
                 </div>
+                ` : ''}
             </div>
 
             <div class="pt-6 border-t border-gray-100 dark:border-white/5 flex justify-end">
@@ -1431,7 +1433,8 @@ function saveUserProfile(e) {
     e.preventDefault();
     const newUsername = document.getElementById('profileUsername').value;
     const newUrl = document.getElementById('profileUrlInput').value;
-    const newChatPin = document.getElementById('profileChatPin').value;
+    const chatPinInput = document.getElementById('profileChatPin');
+    const newChatPin = chatPinInput ? chatPinInput.value : null;
     
     const db = getDB();
     const userIndex = db.users.findIndex(u => u.id === currentUser.id);
@@ -1445,7 +1448,9 @@ function saveUserProfile(e) {
 
         db.users[userIndex].username = newUsername;
         db.users[userIndex].profilePic = newUrl;
-        db.users[userIndex].chatPin = newChatPin;
+        if (newChatPin !== null) {
+            db.users[userIndex].chatPin = newChatPin;
+        }
         
         currentUser = db.users[userIndex]; // Update current user state
         saveDB(db);
