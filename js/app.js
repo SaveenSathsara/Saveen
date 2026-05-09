@@ -22,6 +22,54 @@ function toggleTheme() {
     }
 }
 
+// Image Handling Helpers
+function processImage(file, callback) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            // Resize if too large (max 800px)
+            const maxSide = 800;
+            if (width > maxSide || height > maxSide) {
+                if (width > height) {
+                    height *= maxSide / width;
+                    width = maxSide;
+                } else {
+                    width *= maxSide / height;
+                    height = maxSide;
+                }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Compress to JPEG with 0.7 quality to save space in DB
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            callback(dataUrl);
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function triggerImageUpload(callback) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            processImage(e.target.files[0], callback);
+        }
+    };
+    input.click();
+}
+
 function navigate(view) {
     currentView = view;
     render();
@@ -63,29 +111,50 @@ function openResetPinModal() {
     modal.className = 'fixed inset-0 z-[100] flex items-center justify-center modal-overlay fade-in p-4';
     modal.innerHTML = `
         <div class="glass-panel w-full max-w-md rounded-2xl p-8 slide-up relative overflow-hidden">
-            <div class="absolute -top-20 -right-20 w-40 h-40 bg-purple-400 dark:bg-purple-500 rounded-full mix-blend-multiply filter blur-[60px] opacity-30 dark:opacity-40 pointer-events-none"></div>
+            <div class="absolute -top-20 -right-20 w-40 h-40 bg-brand-400 dark:bg-brand-500 rounded-full mix-blend-multiply filter blur-[60px] opacity-30 dark:opacity-40 pointer-events-none"></div>
             
             <div class="flex justify-between items-center mb-6 relative z-10">
-                <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Reset PIN</h3>
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white">PIN Recovery</h3>
                 <button onclick="closeModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
+            </div>
+
+            <div class="flex p-1 bg-gray-100 dark:bg-slate-800/50 rounded-xl mb-6 relative z-10 border border-gray-200 dark:border-white/5">
+                <button onclick="toggleResetTab('user')" id="userResetTab" class="flex-1 py-2 rounded-lg text-sm font-bold transition-all bg-brand-600 text-white shadow-md">
+                    <i class="fas fa-user mr-2"></i> User
+                </button>
+                <button onclick="toggleResetTab('admin')" id="adminResetTab" class="flex-1 py-2 rounded-lg text-sm font-bold transition-all text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+                    <i class="fas fa-user-shield mr-2"></i> Admin
+                </button>
             </div>
             
             <form id="resetPinForm" onsubmit="handleResetPin(event)" class="space-y-4 relative z-10">
-                <div>
+                <div id="usernameField">
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
-                    <input type="text" id="resetUsername" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" placeholder="Username">
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-user"></i></span>
+                        <input type="text" id="resetUsername" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="Username">
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Old PIN</label>
-                    <input type="password" id="resetOldPin" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" placeholder="••••••••">
+                    <label id="oldPinLabel" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Old PIN</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-unlock"></i></span>
+                        <input type="password" id="resetOldPin" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="••••••••">
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New PIN</label>
-                    <input type="password" id="resetNewPin" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" placeholder="••••••••">
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-key"></i></span>
+                        <input type="password" id="resetNewPin" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="••••••••">
+                    </div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Confirm New PIN</label>
-                    <input type="password" id="resetConfirmPin" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" placeholder="••••••••">
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-check-double"></i></span>
+                        <input type="password" id="resetConfirmPin" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="••••••••">
+                    </div>
                 </div>
                 
                 <div id="resetError" class="text-red-500 dark:text-red-400 text-sm hidden bg-red-100 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-500/30 text-center"></div>
@@ -101,6 +170,31 @@ function openResetPinModal() {
     activeModal = modal;
     render();
 }
+
+let activeResetTab = 'user';
+function toggleResetTab(tab) {
+    activeResetTab = tab;
+    const userTab = document.getElementById('userResetTab');
+    const adminTab = document.getElementById('adminResetTab');
+    const usernameField = document.getElementById('usernameField');
+    const usernameInput = document.getElementById('resetUsername');
+    const oldPinLabel = document.getElementById('oldPinLabel');
+    
+    if (tab === 'admin') {
+        adminTab.className = 'flex-1 py-2 rounded-lg text-sm font-bold transition-all bg-brand-600 text-white shadow-md';
+        userTab.className = 'flex-1 py-2 rounded-lg text-sm font-bold transition-all text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white';
+        usernameField.classList.add('hidden');
+        usernameInput.value = 'saveen'; // Admin username
+        oldPinLabel.innerText = 'Current Admin PIN';
+    } else {
+        userTab.className = 'flex-1 py-2 rounded-lg text-sm font-bold transition-all bg-brand-600 text-white shadow-md';
+        adminTab.className = 'flex-1 py-2 rounded-lg text-sm font-bold transition-all text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white';
+        usernameField.classList.remove('hidden');
+        usernameInput.value = '';
+        oldPinLabel.innerText = 'Old PIN';
+    }
+}
+
 
 function handleResetPin(e) {
     e.preventDefault();
@@ -149,6 +243,67 @@ function logout() {
     navigate('home');
 }
 
+function handleRegistrationRequest(e) {
+    e.preventDefault();
+    const username = document.getElementById('regUsername').value;
+    const pin = document.getElementById('regPin').value;
+    const confirmPin = document.getElementById('regConfirmPin').value;
+    const errorEl = document.getElementById('regError');
+    const successEl = document.getElementById('regSuccess');
+    
+    errorEl.classList.add('hidden');
+    successEl.classList.add('hidden');
+    
+    if (pin !== confirmPin) {
+        errorEl.innerText = 'PIN and Confirm PIN do not match!';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    const db = getDB();
+    if (db.users.find(u => u.username === username) || db.userRequests.find(r => r.username === username)) {
+        errorEl.innerText = 'Username already exists or is pending approval!';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    const request = {
+        id: generateId(),
+        username,
+        pin,
+        timestamp: new Date().toISOString()
+    };
+    
+    db.userRequests.push(request);
+    saveDB(db);
+    
+    successEl.innerText = 'Request sent to Admin! Please wait for approval.';
+    successEl.classList.remove('hidden');
+    
+    setTimeout(() => {
+        toggleLoginView('login');
+    }, 3000);
+}
+
+function toggleLoginView(view) {
+    const loginForm = document.getElementById('loginFormContainer');
+    const regForm = document.getElementById('regFormContainer');
+    const loginTitle = document.getElementById('loginTitle');
+    const loginDesc = document.getElementById('loginDesc');
+    
+    if (view === 'register') {
+        loginForm.classList.add('hidden');
+        regForm.classList.remove('hidden');
+        loginTitle.innerText = 'Create Account';
+        loginDesc.innerText = 'Enter details to request access';
+    } else {
+        loginForm.classList.remove('hidden');
+        regForm.classList.add('hidden');
+        loginTitle.innerText = 'Welcome Back';
+        loginDesc.innerText = 'Enter your credentials to access';
+    }
+}
+
 function render() {
     appContainer.innerHTML = '';
     renderNavbar();
@@ -188,9 +343,15 @@ function renderNavbar() {
     const nav = document.createElement('nav');
     nav.className = 'fixed top-0 w-full z-50 glass-panel border-b-0 py-4 px-6 flex justify-between items-center transition-colors';
     
+    const db = getDB();
     const logo = document.createElement('div');
     logo.className = 'text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-purple-600 cursor-pointer flex items-center gap-2';
-    logo.innerHTML = '<i class="fas fa-layer-group text-brand-500"></i> Saveen Sathsara';
+    
+    if (db.settings && db.settings.logo) {
+        logo.innerHTML = `<img src="${db.settings.logo}" class="h-8 w-auto object-contain mr-1"> ${db.settings.siteName || 'Saveen Sathsara'}`;
+    } else {
+        logo.innerHTML = `<i class="fas fa-layer-group text-brand-500"></i> ${db.settings.siteName || 'Saveen Sathsara'}`;
+    }
     logo.onclick = () => navigate('home');
     
     const menu = document.createElement('div');
@@ -287,36 +448,77 @@ function createLoginView() {
                 <div class="w-16 h-16 bg-gradient-to-tr from-brand-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-500/30">
                     <i class="fas fa-lock text-2xl text-white"></i>
                 </div>
-                <h2 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Welcome Back</h2>
-                <p class="text-gray-600 dark:text-gray-400">Enter your credentials to access</p>
+                <h2 id="loginTitle" class="text-3xl font-bold text-gray-900 dark:text-white mb-2">Welcome Back</h2>
+                <p id="loginDesc" class="text-gray-600 dark:text-gray-400">Enter your credentials to access</p>
             </div>
             
-            <form id="loginForm" class="space-y-6 relative z-10" onsubmit="handleLogin(event)">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-user"></i></span>
-                        <input type="text" id="username" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="Username">
+            <div id="loginFormContainer">
+                <form id="loginForm" class="space-y-6 relative z-10" onsubmit="handleLogin(event)">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-user"></i></span>
+                            <input type="text" id="username" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="Username">
+                        </div>
                     </div>
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">PIN</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-key"></i></span>
-                        <input type="password" id="pin" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="••••••••">
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">PIN</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-key"></i></span>
+                            <input type="password" id="pin" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="••••••••">
+                        </div>
                     </div>
-                </div>
-                
-                <div id="loginError" class="text-red-500 dark:text-red-400 text-sm hidden bg-red-100 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-500/30 text-center"></div>
-                
-                <button type="submit" class="w-full bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-brand-500/25 glow-btn mt-4">
-                    Sign In <i class="fas fa-arrow-right ml-2"></i>
-                </button>
-                <div class="text-center mt-6">
-                    <button type="button" onclick="openResetPinModal()" class="text-sm text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Forgot PIN?</button>
-                </div>
-            </form>
+                    
+                    <div id="loginError" class="text-red-500 dark:text-red-400 text-sm hidden bg-red-100 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-500/30 text-center"></div>
+                    
+                    <button type="submit" class="w-full bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-brand-500/25 glow-btn mt-4">
+                        Sign In <i class="fas fa-arrow-right ml-2"></i>
+                    </button>
+                    <div class="flex justify-between items-center mt-6">
+                        <button type="button" onclick="openResetPinModal()" class="text-sm text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Forgot PIN?</button>
+                        <button type="button" onclick="toggleLoginView('register')" class="text-sm font-semibold text-brand-600 dark:text-brand-400 hover:underline">New User?</button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="regFormContainer" class="hidden">
+                <form id="regForm" class="space-y-6 relative z-10" onsubmit="handleRegistrationRequest(event)">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Desired Username</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-user-plus"></i></span>
+                            <input type="text" id="regUsername" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="Username">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Set PIN</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-key"></i></span>
+                            <input type="password" id="regPin" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="••••••••">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Confirm PIN</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-check-double"></i></span>
+                            <input type="password" id="regConfirmPin" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="••••••••">
+                        </div>
+                    </div>
+                    
+                    <div id="regError" class="text-red-500 dark:text-red-400 text-sm hidden bg-red-100 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-500/30 text-center"></div>
+                    <div id="regSuccess" class="text-green-500 dark:text-green-400 text-sm hidden bg-green-100 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-500/30 text-center"></div>
+                    
+                    <button type="submit" class="w-full bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-brand-500/25 glow-btn mt-4">
+                        Request to Admin <i class="fas fa-paper-plane ml-2"></i>
+                    </button>
+                    <div class="text-center mt-6">
+                        <button type="button" onclick="toggleLoginView('login')" class="text-sm text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors">Already have an account? Login</button>
+                    </div>
+                </form>
+            </div>
         </div>
     `;
     return div;
@@ -346,6 +548,9 @@ function createAdminView() {
                 <button onclick="switchAdminTab('galleries')" class="px-4 py-2 rounded-lg text-sm font-medium transition-all ${adminTab === 'galleries' ? 'bg-brand-500 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}">
                     <i class="fas fa-images mr-2"></i>Galleries
                 </button>
+                <button onclick="switchAdminTab('settings')" class="px-4 py-2 rounded-lg text-sm font-medium transition-all ${adminTab === 'settings' ? 'bg-brand-500 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}">
+                    <i class="fas fa-cog mr-2"></i>Settings
+                </button>
                 <button onclick="manualCloudSync()" class="ml-2 px-4 py-2 rounded-lg text-sm font-bold bg-green-500 hover:bg-green-600 text-white transition-all shadow-md flex items-center gap-2">
                     <i class="fas fa-cloud-upload-alt"></i> Save to Cloud
                 </button>
@@ -364,6 +569,7 @@ function createAdminView() {
             if (adminTab === 'users') contentDiv.appendChild(renderAdminUsers());
             if (adminTab === 'forms') contentDiv.appendChild(renderAdminForms());
             if (adminTab === 'galleries') contentDiv.appendChild(renderAdminGalleries());
+            if (adminTab === 'settings') contentDiv.appendChild(renderAdminSettings());
         }
     }, 0);
     
@@ -582,9 +788,97 @@ function renderAdminUsers() {
     });
     
     html += `</tbody></table></div>`;
+
+    // Registration Requests Section
+    const requests = db.userRequests || [];
+    if (requests.length > 0) {
+        html += `
+            <div class="mt-12 mb-6">
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <i class="fas fa-user-clock text-brand-500"></i> Registration Requests
+                    <span class="ml-2 px-2 py-0.5 bg-brand-500 text-white text-xs rounded-full">${requests.length}</span>
+                </h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">New users waiting for access approval.</p>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-white/5">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-50 dark:bg-slate-800/80 text-gray-600 dark:text-gray-400 uppercase text-xs">
+                        <tr>
+                            <th class="px-6 py-4 font-medium">Username</th>
+                            <th class="px-6 py-4 font-medium">Initial PIN</th>
+                            <th class="px-6 py-4 font-medium">Requested Date</th>
+                            <th class="px-6 py-4 font-medium text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-white/5 bg-white dark:bg-transparent">
+        `;
+        
+        requests.forEach(r => {
+            const date = new Date(r.timestamp).toLocaleDateString();
+            html += `
+                <tr class="hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
+                    <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">${r.username}</td>
+                    <td class="px-6 py-4 text-gray-500 dark:text-gray-400 font-mono">${r.pin}</td>
+                    <td class="px-6 py-4 text-gray-500 dark:text-gray-400">${date}</td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex justify-end gap-2">
+                            <button onclick="approveUserRequest('${r.id}')" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md shadow-green-500/20">
+                                <i class="fas fa-check mr-1"></i> Approve
+                            </button>
+                            <button onclick="declineUserRequest('${r.id}')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md shadow-red-500/20">
+                                <i class="fas fa-times mr-1"></i> Decline
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        html += `</tbody></table></div>`;
+    }
+
     div.innerHTML = html;
     return div;
 }
+
+function approveUserRequest(id) {
+    if (!confirm('Approve this user registration?')) return;
+    
+    const db = getDB();
+    const request = db.userRequests.find(r => r.id === id);
+    
+    if (request) {
+        // Add to users
+        db.users.push({
+            id: generateId(),
+            username: request.username,
+            pin: request.pin,
+            role: 'user',
+            assignedPageIds: [],
+            chatEnabled: true,
+            chatNumber: Math.floor(10000 + Math.random() * 90000).toString(),
+            chatPin: '750711',
+            profilePic: ''
+        });
+        
+        // Remove from requests
+        db.userRequests = db.userRequests.filter(r => r.id !== id);
+        
+        saveDB(db);
+        render();
+        alert(`User ${request.username} has been approved and added to the system.`);
+    }
+}
+
+function declineUserRequest(id) {
+    if (!confirm('Are you sure you want to decline and delete this request?')) return;
+    
+    const db = getDB();
+    db.userRequests = db.userRequests.filter(r => r.id !== id);
+    saveDB(db);
+    render();
+}
+
 
 function openUserModal(userId = null) {
     const db = getDB();
@@ -643,9 +937,33 @@ function openUserModal(userId = null) {
                 </div>
                 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Profile Picture URL</label>
-                    <input type="text" id="userProfilePic" value="${user.profilePic || ''}" class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" placeholder="https://example.com/image.jpg">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Profile Picture</label>
+                    <div class="flex gap-3">
+                        <div id="profilePicPreview" class="w-12 h-12 rounded-xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center overflow-hidden shrink-0 border border-gray-200 dark:border-white/10">
+                            ${user.profilePic ? `<img src="${user.profilePic}" class="w-full h-full object-cover">` : '<i class="fas fa-user text-gray-300"></i>'}
+                        </div>
+                        <div class="flex-grow space-y-2">
+                            <input type="text" id="userProfilePic" value="${user.profilePic || ''}" onchange="updateProfilePreview(this.value)" class="glass-input w-full px-4 py-2 rounded-lg bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none text-sm focus:ring-2 focus:ring-brand-500" placeholder="Image URL">
+                            <button type="button" onclick="triggerProfileUpload()" class="w-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-white py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-2 border border-gray-200 dark:border-transparent">
+                                <i class="fas fa-camera"></i> Upload / Camera
+                            </button>
+                        </div>
+                    </div>
                 </div>
+
+                <script>
+                    window.updateProfilePreview = (url) => {
+                        const preview = document.getElementById('profilePicPreview');
+                        if (url) preview.innerHTML = '<img src="' + url + '" class="w-full h-full object-cover">';
+                        else preview.innerHTML = '<i class="fas fa-user text-gray-300"></i>';
+                    };
+                    window.triggerProfileUpload = () => {
+                        triggerImageUpload((dataUrl) => {
+                            document.getElementById('userProfilePic').value = dataUrl;
+                            updateProfilePreview(dataUrl);
+                        });
+                    };
+                </script>
                 
                 ${user.username !== 'saveen' ? `
                 <div>
@@ -1536,14 +1854,23 @@ function openGalleryModal(galleryId = null) {
                     <img src="${img.url}" class="w-full h-full object-cover" onerror="this.src='https://via.placeholder.com/150?text=Invalid+URL'">
                 </div>
                 <div class="flex-grow space-y-2">
-                    <input type="text" value="${img.url}" onchange="updateTempGalleryImage(${idx}, 'url', this.value)" placeholder="Image URL" class="glass-input w-full px-3 py-2 text-sm rounded bg-white dark:bg-slate-800/50 border-gray-200 dark:border-none text-gray-900 dark:text-white">
-                    <input type="text" value="${img.caption || ''}" onchange="updateTempGalleryImage(${idx}, 'caption', this.value)" placeholder="Caption (optional)" class="glass-input w-full px-3 py-2 text-sm rounded bg-white dark:bg-slate-800/50 border-gray-200 dark:border-none text-gray-900 dark:text-white">
+                    <div class="flex gap-2">
+                        <input type="text" value="${img.url}" onchange="updateTempGalleryImage(${idx}, 'url', this.value)" placeholder="Image URL" class="glass-input flex-grow px-3 py-2 text-xs rounded bg-white dark:bg-slate-800/50 border-gray-200 dark:border-none text-gray-900 dark:text-white">
+                        <button type="button" onclick="triggerGalleryItemUpload(${idx})" class="px-3 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs transition-all"><i class="fas fa-camera"></i></button>
+                    </div>
+                    <input type="text" value="${img.caption || ''}" onchange="updateTempGalleryImage(${idx}, 'caption', this.value)" placeholder="Caption (optional)" class="glass-input w-full px-3 py-2 text-xs rounded bg-white dark:bg-slate-800/50 border-gray-200 dark:border-none text-gray-900 dark:text-white">
                 </div>
                 <button type="button" onclick="removeTempGalleryImage(${idx})" class="w-10 h-10 shrink-0 rounded bg-red-100 dark:bg-red-500/20 text-red-500 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30 flex items-center justify-center transition-colors">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
         `).join('');
+    };
+
+    window.triggerGalleryItemUpload = (idx) => {
+        triggerImageUpload((dataUrl) => {
+            window.updateTempGalleryImage(idx, 'url', dataUrl);
+        });
     };
     
     window.updateTempGalleryImage = (idx, key, value) => {
@@ -1619,6 +1946,87 @@ function deleteGallery(id) {
         saveDB(db);
         render();
     }
+}
+
+// ---------------- Admin: Settings ----------------
+function renderAdminSettings() {
+    const div = document.createElement('div');
+    const db = getDB();
+    const settings = db.settings || { logo: '', siteName: 'Saveen Sathsara' };
+    
+    div.innerHTML = `
+        <div class="max-w-2xl">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Website Settings</h2>
+            
+            <form onsubmit="saveSettings(event)" class="space-y-8">
+                <div class="glass-panel p-6 rounded-2xl border border-gray-200 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.02]">
+                    <h3 class="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Branding</h3>
+                    
+                    <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Website Name</label>
+                            <input type="text" id="settingSiteName" value="${settings.siteName}" class="glass-input w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500" placeholder="e.g. Saveen Sathsara">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Website Logo</label>
+                            <div class="flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                <div id="logoPreviewContainer" class="w-32 h-32 rounded-xl bg-white dark:bg-slate-800 border-2 border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                                    ${settings.logo ? `<img src="${settings.logo}" class="max-w-full max-h-full object-contain">` : '<i class="fas fa-image text-gray-300 text-3xl"></i>'}
+                                </div>
+                                <div class="flex-grow space-y-3">
+                                    <input type="text" id="settingLogoUrl" value="${settings.logo}" onchange="updateLogoPreview(this.value)" class="glass-input w-full px-4 py-2 rounded-lg bg-white dark:bg-slate-800/50 border-gray-200 dark:border-none text-sm" placeholder="Image URL">
+                                    <div class="flex gap-2">
+                                        <button type="button" onclick="triggerLogoUpload()" class="flex-1 bg-brand-600 hover:bg-brand-500 text-white py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2">
+                                            <i class="fas fa-upload"></i> Upload / Camera
+                                        </button>
+                                        <button type="button" onclick="updateLogoPreview('')" class="px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400 rounded-lg text-xs font-bold hover:bg-gray-200 dark:hover:bg-white/20 transition-all">Clear</button>
+                                    </div>
+                                    <p class="text-[10px] text-gray-500">Upload a PNG or SVG logo. Recommended size: 200x50px.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end">
+                    <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-brand-500/25 glow-btn">
+                        Save All Settings
+                    </button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    // Scoped helpers for logo
+    window.updateLogoPreview = (url) => {
+        const preview = document.getElementById('logoPreviewContainer');
+        const urlInput = document.getElementById('settingLogoUrl');
+        urlInput.value = url;
+        if (url) {
+            preview.innerHTML = `<img src="${url}" class="max-w-full max-h-full object-contain">`;
+        } else {
+            preview.innerHTML = '<i class="fas fa-image text-gray-300 text-3xl"></i>';
+        }
+    };
+    
+    window.triggerLogoUpload = () => {
+        triggerImageUpload((dataUrl) => {
+            updateLogoPreview(dataUrl);
+        });
+    };
+    
+    window.saveSettings = (e) => {
+        e.preventDefault();
+        const db = getDB();
+        db.settings.siteName = document.getElementById('settingSiteName').value;
+        db.settings.logo = document.getElementById('settingLogoUrl').value;
+        saveDB(db);
+        alert("Settings saved successfully!");
+        render(); // Refresh navbar
+    };
+
+    return div;
 }
 
 // Manual sync to cloud button logic

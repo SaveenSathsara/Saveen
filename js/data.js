@@ -11,7 +11,12 @@ const defaultData = {
     ],
     forms: [],
     formSubmissions: [],
-    galleries: []
+    galleries: [],
+    userRequests: [],
+    settings: {
+        logo: '',
+        siteName: 'Saveen Sathsara'
+    }
 };
 
 let cloudDataCache = null;
@@ -74,6 +79,8 @@ function getDB() {
     if (!dbData.forms) dbData.forms = [];
     if (!dbData.formSubmissions) dbData.formSubmissions = [];
     if (!dbData.galleries) dbData.galleries = [];
+    if (!dbData.userRequests) dbData.userRequests = [];
+    if (!dbData.settings) dbData.settings = { logo: '', siteName: 'Saveen Sathsara' };
 
     // Migration: assignedPageId -> assignedPageIds
     dbData.users.forEach(u => {
