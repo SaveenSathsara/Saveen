@@ -70,6 +70,21 @@ function triggerImageUpload(callback) {
     input.click();
 }
 
+window.updateProfilePreview = (url) => {
+    const preview = document.getElementById('profilePicPreview');
+    if (!preview) return;
+    if (url) preview.innerHTML = `<img src="${url}" class="w-full h-full object-cover">`;
+    else preview.innerHTML = '<i class="fas fa-user text-gray-300"></i>';
+};
+
+window.triggerProfileUpload = () => {
+    triggerImageUpload((dataUrl) => {
+        const input = document.getElementById('userProfilePic');
+        if (input) input.value = dataUrl;
+        window.updateProfilePreview(dataUrl);
+    });
+};
+
 function navigate(view) {
     currentView = view;
     render();
@@ -357,7 +372,6 @@ function renderNavbar() {
     const menu = document.createElement('div');
     menu.className = 'flex items-center gap-2 md:gap-4';
     
-    const db = getDB();
     const navLinks = document.createElement('div');
     navLinks.className = 'hidden md:flex items-center gap-6 mr-4';
     db.pages.forEach(p => {
@@ -952,17 +966,7 @@ function openUserModal(userId = null) {
                 </div>
 
                 <script>
-                    window.updateProfilePreview = (url) => {
-                        const preview = document.getElementById('profilePicPreview');
-                        if (url) preview.innerHTML = '<img src="' + url + '" class="w-full h-full object-cover">';
-                        else preview.innerHTML = '<i class="fas fa-user text-gray-300"></i>';
-                    };
-                    window.triggerProfileUpload = () => {
-                        triggerImageUpload((dataUrl) => {
-                            document.getElementById('userProfilePic').value = dataUrl;
-                            updateProfilePreview(dataUrl);
-                        });
-                    };
+                    // These are now handled by global window functions defined in app.js
                 </script>
                 
                 ${user.username !== 'saveen' ? `
