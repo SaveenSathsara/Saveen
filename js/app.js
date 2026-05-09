@@ -144,16 +144,23 @@ function openResetPinModal() {
             
             <form id="resetPinForm" onsubmit="handleResetPin(event)" class="space-y-4 relative z-10">
                 <div id="usernameField">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
+                    <label id="usernameLabel" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Username</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-user"></i></span>
-                        <input type="text" id="resetUsername" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="Username">
+                        <input type="text" id="resetUsername" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="Target Username">
+                    </div>
+                </div>
+                <div id="newUsernameField" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New Username (Optional)</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-user-edit"></i></span>
+                        <input type="text" id="resetNewUsername" class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="Leave empty to keep current">
                     </div>
                 </div>
                 <div>
                     <label id="oldPinLabel" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Old PIN</label>
                     <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-unlock"></i></span>
+                        <span id="oldPinIcon" class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400 dark:text-gray-500"><i class="fas fa-unlock"></i></span>
                         <input type="password" id="resetOldPin" required class="glass-input w-full pl-10 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-brand-500 border-none bg-white/50 dark:bg-slate-800/50" placeholder="••••••••">
                     </div>
                 </div>
@@ -191,22 +198,31 @@ function toggleResetTab(tab) {
     activeResetTab = tab;
     const userTab = document.getElementById('userResetTab');
     const adminTab = document.getElementById('adminResetTab');
-    const usernameField = document.getElementById('usernameField');
+    const usernameLabel = document.getElementById('usernameLabel');
     const usernameInput = document.getElementById('resetUsername');
+    const newUsernameField = document.getElementById('newUsernameField');
     const oldPinLabel = document.getElementById('oldPinLabel');
+    const oldPinIcon = document.getElementById('oldPinIcon');
+    const resetTitle = document.querySelector('#resetPinForm button[type="submit"]');
     
     if (tab === 'admin') {
         adminTab.className = 'flex-1 py-2 rounded-lg text-sm font-bold transition-all bg-brand-600 text-white shadow-md';
         userTab.className = 'flex-1 py-2 rounded-lg text-sm font-bold transition-all text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white';
-        usernameField.classList.add('hidden');
-        usernameInput.value = 'saveen'; // Admin username
-        oldPinLabel.innerText = 'Current Admin PIN';
+        usernameLabel.innerText = "Target User's Username";
+        usernameInput.placeholder = "Enter user's username";
+        newUsernameField.classList.remove('hidden');
+        oldPinLabel.innerText = 'Admin Verification PIN';
+        oldPinIcon.innerHTML = '<i class="fas fa-user-shield"></i>';
+        resetTitle.innerText = 'Update User via Admin';
     } else {
         userTab.className = 'flex-1 py-2 rounded-lg text-sm font-bold transition-all bg-brand-600 text-white shadow-md';
         adminTab.className = 'flex-1 py-2 rounded-lg text-sm font-bold transition-all text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white';
-        usernameField.classList.remove('hidden');
-        usernameInput.value = '';
+        usernameLabel.innerText = "Username";
+        usernameInput.placeholder = "Username";
+        newUsernameField.classList.add('hidden');
         oldPinLabel.innerText = 'Old PIN';
+        oldPinIcon.innerHTML = '<i class="fas fa-unlock"></i>';
+        resetTitle.innerText = 'Update PIN';
     }
 }
 
@@ -214,7 +230,8 @@ function toggleResetTab(tab) {
 function handleResetPin(e) {
     e.preventDefault();
     const username = document.getElementById('resetUsername').value;
-    const oldPin = document.getElementById('resetOldPin').value;
+    const newUsername = document.getElementById('resetNewUsername').value;
+    const pinToVerify = document.getElementById('resetOldPin').value;
     const newPin = document.getElementById('resetNewPin').value;
     const confirmPin = document.getElementById('resetConfirmPin').value;
     const errorEl = document.getElementById('resetError');
@@ -230,17 +247,50 @@ function handleResetPin(e) {
     }
     
     const db = getDB();
-    const user = db.users.find(u => u.username === username && u.pin === oldPin);
     
-    if (user) {
-        user.pin = newPin;
-        saveDB(db);
-        successEl.innerText = 'PIN updated successfully! You can now login with your new PIN.';
-        successEl.classList.remove('hidden');
-        setTimeout(() => closeModal(), 3000);
+    if (activeResetTab === 'admin') {
+        // Admin Mode: Verify Admin PIN first
+        const admin = db.users.find(u => u.username === 'saveen');
+        if (!admin || admin.pin !== pinToVerify) {
+            errorEl.innerText = 'Incorrect Admin Verification PIN!';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        
+        // Find Target User
+        const targetUser = db.users.find(u => u.username === username);
+        if (targetUser) {
+            targetUser.pin = newPin;
+            if (newUsername.trim()) {
+                // Check if new username is already taken
+                if (newUsername.trim() !== targetUser.username && db.users.find(u => u.username === newUsername.trim())) {
+                    errorEl.innerText = 'New username is already taken!';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+                targetUser.username = newUsername.trim();
+            }
+            saveDB(db);
+            successEl.innerText = `Successfully updated ${username}'s credentials!`;
+            successEl.classList.remove('hidden');
+            setTimeout(() => closeModal(), 3000);
+        } else {
+            errorEl.innerText = 'Target user not found!';
+            errorEl.classList.remove('hidden');
+        }
     } else {
-        errorEl.innerText = 'Invalid username or old PIN!';
-        errorEl.classList.remove('hidden');
+        // User Mode: Verify current username + old pin
+        const user = db.users.find(u => u.username === username && u.pin === pinToVerify);
+        if (user) {
+            user.pin = newPin;
+            saveDB(db);
+            successEl.innerText = 'PIN updated successfully! You can now login with your new PIN.';
+            successEl.classList.remove('hidden');
+            setTimeout(() => closeModal(), 3000);
+        } else {
+            errorEl.innerText = 'Invalid username or old PIN!';
+            errorEl.classList.remove('hidden');
+        }
     }
 }
 
