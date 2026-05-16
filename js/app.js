@@ -727,11 +727,12 @@ function openPageModal(pageId = null) {
                     <div>
                         <div class="flex justify-between items-center mb-2">
                             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Content (HTML allowed)</label>
-                            <div class="flex gap-2">
+                            <div class="flex flex-wrap gap-2">
                                 <button type="button" onclick="insertShortcode('form')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fas fa-wpforms mr-1 text-brand-500 dark:text-brand-400"></i> Form</button>
                                 <button type="button" onclick="insertShortcode('gallery')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fas fa-images mr-1 text-green-500 dark:text-green-400"></i> Gallery</button>
                                 <button type="button" onclick="insertShortcode('youtube')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fab fa-youtube mr-1 text-red-500 dark:text-red-400"></i> YouTube</button>
                                 <button type="button" onclick="insertShortcode('gdoc')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fas fa-file-alt mr-1 text-blue-500 dark:text-blue-400"></i> Google Doc/Form</button>
+                                <button type="button" onclick="insertShortcode('directory')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fas fa-address-book mr-1 text-purple-500 dark:text-purple-400"></i> User Directory</button>
                             </div>
                         </div>
                         <textarea id="pageContent" required rows="10" class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">${page.content}</textarea>
@@ -999,6 +1000,24 @@ function openUserModal(userId = null) {
                         <input type="text" id="userChatPin" value="${user.chatPin}" required class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500">
                     </div>
                 </div>
+
+                <div class="bg-gray-50/50 dark:bg-slate-800/30 p-4 rounded-xl border border-gray-200 dark:border-white/5 mt-4 space-y-4">
+                    <h4 class="font-bold text-sm text-brand-600 dark:text-brand-400"><i class="fas fa-address-book"></i> Member Directory Access PINs</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Page Login PIN</label>
+                            <input type="text" id="userDirLoginPin" value="${user.dirLoginPin || ''}" placeholder="PIN to open page" class="glass-input w-full px-3 py-2 rounded-lg bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">View Full Name PIN</label>
+                            <input type="text" id="userDirViewPin" value="${user.dirViewPin || ''}" placeholder="PIN to view name" class="glass-input w-full px-3 py-2 rounded-lg bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Add Member PIN</label>
+                            <input type="text" id="userDirAddPin" value="${user.dirAddPin || ''}" placeholder="PIN to add person" class="glass-input w-full px-3 py-2 rounded-lg bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
+                    </div>
+                </div>
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Profile Picture</label>
@@ -1070,6 +1089,9 @@ function saveUser(e, editId) {
     const assignedPagesSelect = document.getElementById('userAssignedPages');
     const chatEnabled = document.getElementById('userChatEnabled').checked;
     const assignedPageIds = Array.from(assignedPagesSelect.selectedOptions).map(opt => opt.value);
+    const dirLoginPin = document.getElementById('userDirLoginPin').value;
+    const dirViewPin = document.getElementById('userDirViewPin').value;
+    const dirAddPin = document.getElementById('userDirAddPin').value;
     
     if (editId) {
         const userObj = db.users.find(u => u.id === editId);
@@ -1083,6 +1105,9 @@ function saveUser(e, editId) {
         userObj.profilePic = profilePic;
         userObj.assignedPageIds = assignedPageIds;
         userObj.chatEnabled = chatEnabled;
+        userObj.dirLoginPin = dirLoginPin;
+        userObj.dirViewPin = dirViewPin;
+        userObj.dirAddPin = dirAddPin;
     } else {
         if (db.users.find(u => u.username === username)) {
             alert('Username already exists!');
@@ -1097,7 +1122,10 @@ function saveUser(e, editId) {
             role, 
             profilePic, 
             assignedPageIds, 
-            chatEnabled 
+            chatEnabled,
+            dirLoginPin,
+            dirViewPin,
+            dirAddPin
         });
     }
     
@@ -1394,7 +1422,7 @@ window.insertShortcode = (type) => {
                 insertion = `\n<div class="aspect-w-16 aspect-h-9 my-4"><iframe src="https://www.youtube.com/embed/${videoId}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen class="w-full h-[400px] rounded-xl shadow-lg border border-gray-200 dark:border-white/10"></iframe></div>\n`;
             }
         }
-    } else if (type === 'gdoc') {
+        } else if (type === 'gdoc') {
         const embedUrl = prompt("Enter Google Docs/Forms/Sheets Embed URL:");
         if (embedUrl) {
             let finalUrl = embedUrl;
@@ -1403,6 +1431,8 @@ window.insertShortcode = (type) => {
             }
             insertion = `\n<div class="my-4"><iframe src="${finalUrl}" width="100%" height="600" frameborder="0" marginheight="0" marginwidth="0" class="rounded-xl shadow-lg border border-gray-200 dark:border-white/10">Loading…</iframe></div>\n`;
         }
+    } else if (type === 'directory') {
+        insertion = `\n[USER_DIRECTORY]\n`;
     }
     
     if (insertion) {
@@ -1414,6 +1444,198 @@ window.insertShortcode = (type) => {
         contentEl.selectionEnd = startPos + insertion.length;
     }
 }
+
+window.renderUserDirectoryHTML = () => {
+    const db = getDB();
+    const dUsers = db.directoryUsers || [];
+    const isAdmin = currentUser && currentUser.role === 'admin';
+    const adminUser = db.users.find(u => u.username === 'saveen');
+    const adminPin = adminUser ? adminUser.pin : null;
+
+    if (!window.directoryAuthenticated && !isAdmin) {
+        return `
+            <div class="glass-panel p-8 text-center max-w-md mx-auto my-10 rounded-2xl bg-white/90 dark:bg-slate-900/50 shadow-xl border border-gray-200 dark:border-white/10">
+                <div class="w-16 h-16 bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                    <i class="fas fa-lock"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-2 text-gray-900 dark:text-white">Directory Secured</h3>
+                <p class="text-sm text-gray-500 mb-6">Please enter your Directory Login PIN to view members.</p>
+                <div class="flex gap-2 justify-center">
+                    <input type="password" id="dirAccessPinInput" placeholder="Enter PIN" class="glass-input px-4 py-2 rounded-xl text-center focus:ring-2 focus:ring-brand-500">
+                    <button onclick="checkDirAccess()" class="bg-brand-600 text-white px-6 py-2 rounded-xl font-medium shadow-lg hover:bg-brand-500 transition-colors">Unlock</button>
+                </div>
+                <div id="dirAccessError" class="text-red-500 text-xs mt-3 hidden font-bold">Incorrect PIN!</div>
+            </div>
+        `;
+    }
+
+    let listHtml = dUsers.map(du => `
+        <tr class="border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
+            <td class="py-3 px-4 font-mono text-gray-600 dark:text-gray-400">${du.id}</td>
+            <td class="py-3 px-4 font-medium text-gray-900 dark:text-white">${du.shortName}</td>
+            <td class="py-3 px-4 flex gap-2">
+                <button onclick="viewDirectoryUserFullName('${du.id}')" class="text-xs bg-brand-100 text-brand-700 px-3 py-1.5 rounded-lg dark:bg-brand-500/20 dark:text-brand-300 hover:bg-brand-200 dark:hover:bg-brand-500/30 transition-colors font-medium">View Full Name</button>
+            </td>
+        </tr>
+    `).join('');
+    
+    return `
+        <div class="my-8 glass-panel p-6 md:p-8 rounded-3xl shadow-xl relative overflow-hidden bg-white/90 dark:bg-slate-900/50" id="directoryContainer">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-500"></div>
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                <div>
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white">User Directory</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage directory members</p>
+                </div>
+                <button onclick="openAddDirectoryUserForm()" class="bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all shadow-lg shadow-brand-500/25 glow-btn flex items-center gap-2">
+                    <i class="fas fa-user-plus"></i> Add New
+                </button>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-white/5">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-50 dark:bg-slate-800/80 text-gray-600 dark:text-gray-400 uppercase text-xs">
+                        <tr>
+                            <th class="py-4 px-4 font-medium">ID</th>
+                            <th class="py-4 px-4 font-medium">Short Name</th>
+                            <th class="py-4 px-4 font-medium">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-white/5">
+                        ${listHtml || '<tr><td colspan="3" class="text-center py-8 text-gray-500">No users found in directory.</td></tr>'}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+};
+
+window.checkDirAccess = () => {
+    const pin = document.getElementById('dirAccessPinInput').value;
+    const db = getDB();
+    const adminUser = db.users.find(u => u.username === 'saveen');
+    const adminPin = adminUser ? adminUser.pin : null;
+    
+    if ((currentUser && pin === currentUser.dirLoginPin) || pin === adminPin) {
+        window.directoryAuthenticated = true;
+        render();
+    } else {
+        document.getElementById('dirAccessError').classList.remove('hidden');
+    }
+};
+
+window.viewDirectoryUserFullName = (id) => {
+    const db = getDB();
+    const du = db.directoryUsers.find(u => u.id === id);
+    if(!du) return;
+    
+    const pwd = prompt("Enter your View Full Name PIN:");
+    if(pwd === null) return;
+    
+    const admin = db.users.find(u => u.username === 'saveen');
+    const adminPwd = admin ? admin.pin : null;
+    
+    if((currentUser && pwd === currentUser.dirViewPin) || pwd === adminPwd) {
+        alert("Full Name: " + du.fullName);
+    } else {
+        alert("Incorrect PIN! You are not authorized to view the full name.");
+    }
+};
+
+window.changeDirectoryUserPassword = (id) => {
+    // Deprecated functionality, removed.
+};
+
+window.openAddDirectoryUserForm = () => {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[200] flex items-center justify-center modal-overlay fade-in p-4';
+    modal.innerHTML = `
+        <div class="glass-panel w-full max-w-md rounded-3xl p-8 slide-up relative flex flex-col max-h-[90vh]">
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Add Directory User</h3>
+            
+            <form id="addDirUserForm" onsubmit="submitDirectoryUser(event)" class="space-y-5 overflow-y-auto pr-2 custom-scrollbar">
+                <div class="bg-brand-50 dark:bg-brand-500/10 p-4 rounded-xl border border-brand-200 dark:border-brand-500/20 mb-4">
+                    <label class="block text-sm font-bold mb-2 text-brand-700 dark:text-brand-400"><i class="fas fa-shield-alt mr-1"></i> Your Add Member PIN</label>
+                    <input type="password" id="dirAuthAddPin" placeholder="Authorization PIN" required class="glass-input w-full px-4 py-3 rounded-xl border-none bg-white/80 dark:bg-slate-800/80 focus:ring-2 focus:ring-brand-500">
+                    <p class="text-[10px] mt-1 text-brand-600 dark:text-brand-500">Enter your secure PIN to authorize adding this user.</p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Full Name</label>
+                    <input type="text" id="dirFullName" required class="glass-input w-full px-4 py-3 rounded-xl border-none bg-white/50 dark:bg-slate-800/50 focus:ring-2 focus:ring-brand-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Short Name (Max 5 chars)</label>
+                    <input type="text" id="dirShortName" required maxlength="5" class="glass-input w-full px-4 py-3 rounded-xl border-none bg-white/50 dark:bg-slate-800/50 focus:ring-2 focus:ring-brand-500">
+                </div>
+                
+                <div id="dirFormMessage" class="text-sm font-bold text-green-600 dark:text-green-400 hidden bg-green-50 dark:bg-green-500/10 p-3 rounded-lg border border-green-200 dark:border-green-500/20 text-center"></div>
+                
+                <div class="flex justify-end gap-3 pt-6 mt-2 border-t border-gray-100 dark:border-white/5">
+                    <button type="button" onclick="closeDirUserForm()" class="px-6 py-2.5 rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors font-medium">Close</button>
+                    <button type="submit" class="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl shadow-lg shadow-brand-500/30 transition-all font-medium glow-btn">Save User</button>
+                </div>
+            </form>
+        </div>
+    `;
+    window._dirUserModal = modal;
+    document.body.appendChild(modal);
+};
+
+window.closeDirUserForm = () => {
+    if(window._dirUserModal) {
+        window._dirUserModal.remove();
+        window._dirUserModal = null;
+    }
+    if(currentView === 'publicPage' || currentView === 'userView') {
+        render();
+    }
+};
+
+window.submitDirectoryUser = (e) => {
+    e.preventDefault();
+    const db = getDB();
+    
+    const authPin = document.getElementById('dirAuthAddPin').value;
+    const admin = db.users.find(u => u.username === 'saveen');
+    const adminPin = admin ? admin.pin : null;
+    
+    if (!currentUser || (authPin !== currentUser.dirAddPin && authPin !== adminPin)) {
+        alert("Incorrect Add Member PIN! You are not authorized.");
+        return;
+    }
+    
+    const dUsers = db.directoryUsers || [];
+    let nextIdNum = 1;
+    if(dUsers.length > 0) {
+        const ids = dUsers.map(u => parseInt(u.id)).filter(n => !isNaN(n));
+        if(ids.length > 0) {
+            nextIdNum = Math.max(...ids) + 1;
+        }
+    }
+    const newId = nextIdNum.toString().padStart(3, '0');
+    
+    const fullName = document.getElementById('dirFullName').value;
+    const shortName = document.getElementById('dirShortName').value;
+    
+    db.directoryUsers.push({
+        id: newId,
+        fullName,
+        shortName
+    });
+    
+    saveDB(db);
+    
+    const msgEl = document.getElementById('dirFormMessage');
+    msgEl.innerHTML = `<i class="fas fa-check-circle mr-1"></i> User Added! (ID: ${newId})`;
+    msgEl.classList.remove('hidden');
+    
+    document.getElementById('dirFullName').value = '';
+    document.getElementById('dirShortName').value = '';
+    // auth pin remains for ease of adding multiples
+    setTimeout(() => {
+        msgEl.classList.add('hidden');
+    }, 3000);
+};
 
 function parsePageContent(content) {
     const db = getDB();
@@ -1470,7 +1692,7 @@ function parsePageContent(content) {
         `;
     });
 
-    return parsedContent.replace(galleryRegex, (match, galleryId) => {
+    parsedContent = parsedContent.replace(galleryRegex, (match, galleryId) => {
         const gallery = db.galleries.find(g => g.id === galleryId);
         if (!gallery) return `<div class="text-red-500 p-4 border border-red-200 rounded bg-red-50 dark:bg-red-900/20 dark:border-red-500/30 dark:text-red-400 my-4">Error: Gallery not found (ID: ${galleryId})</div>`;
         
@@ -1492,6 +1714,13 @@ function parsePageContent(content) {
             </div>
         `;
     });
+
+    // Parse USER_DIRECTORY shortcode
+    parsedContent = parsedContent.replace(/\[USER_DIRECTORY\]/g, () => {
+        return window.renderUserDirectoryHTML();
+    });
+
+    return parsedContent;
 }
 
 window.submitForm = (e, formId) => {

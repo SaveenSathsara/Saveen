@@ -4,10 +4,11 @@ const defaultData = {
     users: [
         { id: 'u1', username: 'saveen', pin: '760543250', role: 'admin', assignedPageIds: [], chatEnabled: true },
         { id: 'u2', username: 'support', pin: '1234', role: 'admin', assignedPageIds: [], chatEnabled: true, profilePic: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' },
-        { id: 'u3', username: 'testuser', pin: '0000', role: 'user', assignedPageIds: [], chatEnabled: true, profilePic: 'https://cdn-icons-png.flaticon.com/512/147/147144.png' }
+        { id: 'u3', username: 'testuser', pin: '0000', role: 'user', assignedPageIds: ['user_directory'], chatEnabled: true, profilePic: 'https://cdn-icons-png.flaticon.com/512/147/147144.png' }
     ],
     pages: [
-        { id: 'home', title: 'Home', content: '<h1 class="text-4xl md:text-6xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-purple-600 dark:from-brand-400 dark:to-purple-500">Welcome</h1><p class="text-xl text-gray-600 dark:text-gray-300">This is Saveen Sathsara\'s Personal Web Platform.</p>', isSystem: true }
+        { id: 'home', title: 'Home', content: '<h1 class="text-4xl md:text-6xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-purple-600 dark:from-brand-400 dark:to-purple-500">Welcome</h1><p class="text-xl text-gray-600 dark:text-gray-300">This is Saveen Sathsara\'s Personal Web Platform.</p>', isSystem: true },
+        { id: 'user_directory', title: 'Member Directory', content: '[USER_DIRECTORY]', isSystem: false, showInNav: false }
     ],
     forms: [],
     formSubmissions: [],
@@ -80,6 +81,7 @@ function getDB() {
     if (!dbData.formSubmissions) dbData.formSubmissions = [];
     if (!dbData.galleries) dbData.galleries = [];
     if (!dbData.userRequests) dbData.userRequests = [];
+    if (!dbData.directoryUsers) dbData.directoryUsers = [];
     if (!dbData.settings) dbData.settings = { logo: '', siteName: 'Saveen Sathsara' };
 
     // Migration: assignedPageId -> assignedPageIds
@@ -97,6 +99,29 @@ function getDB() {
             u.profilePic = '';
         }
     });
+
+    // Auto-inject Member Directory if it doesn't exist in Firebase
+    if (dbData.pages && !dbData.pages.find(p => p.id === 'user_directory')) {
+        dbData.pages.push({ id: 'user_directory', title: 'Member Directory', content: '[USER_DIRECTORY]', isSystem: false, showInNav: false });
+    }
+    
+    // Ensure all users have access to Member Directory automatically (so it's visible to everyone who logs in)
+    let needsSave = false;
+    dbData.users.forEach(u => {
+        if (!u.assignedPageIds) u.assignedPageIds = [];
+        if (!u.assignedPageIds.includes('user_directory')) {
+            u.assignedPageIds.push('user_directory');
+            needsSave = true;
+        }
+    });
+    
+    if (needsSave) {
+        // Delay save slightly to allow DB to fully initialize
+        setTimeout(() => {
+            if(window.dbRef) window.dbRef.set(dbData);
+            localStorage.setItem(DB_KEY, JSON.stringify(dbData));
+        }, 1500);
+    }
     
     return dbData;
 }
