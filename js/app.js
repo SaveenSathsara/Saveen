@@ -1068,7 +1068,13 @@ function openUserModal(userId = null) {
                 </div>
 
                 <div class="bg-gray-50/50 dark:bg-slate-800/30 p-4 rounded-xl border border-gray-200 dark:border-white/5 mt-4 space-y-4">
-                    <h4 class="font-bold text-sm text-brand-600 dark:text-brand-400"><i class="fas fa-address-book"></i> Member Directory Access PINs</h4>
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-bold text-sm text-brand-600 dark:text-brand-400"><i class="fas fa-address-book"></i> Member Directory Access</h4>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="userDirEnabled" ${user.dirEnabled ? 'checked' : ''} class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-brand-600"></div>
+                        </label>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Page Login PIN</label>
@@ -1158,6 +1164,7 @@ function saveUser(e, editId) {
     const dirLoginPin = document.getElementById('userDirLoginPin').value;
     const dirViewPin = document.getElementById('userDirViewPin').value;
     const dirAddPin = document.getElementById('userDirAddPin').value;
+    const dirEnabled = document.getElementById('userDirEnabled').checked;
     
     if (editId) {
         const userObj = db.users.find(u => u.id === editId);
@@ -1174,6 +1181,7 @@ function saveUser(e, editId) {
         userObj.dirLoginPin = dirLoginPin;
         userObj.dirViewPin = dirViewPin;
         userObj.dirAddPin = dirAddPin;
+        userObj.dirEnabled = dirEnabled;
     } else {
         if (db.users.find(u => u.username === username)) {
             alert('Username already exists!');
@@ -1191,7 +1199,8 @@ function saveUser(e, editId) {
             chatEnabled,
             dirLoginPin,
             dirViewPin,
-            dirAddPin
+            dirAddPin,
+            dirEnabled
         });
     }
     
@@ -1515,8 +1524,17 @@ window.renderUserDirectoryHTML = () => {
     const db = getDB();
     const dUsers = db.directoryUsers || [];
     const isAdmin = currentUser && currentUser.role === 'admin';
+    const isEnabled = currentUser && currentUser.dirEnabled;
     const adminUser = db.users.find(u => u.username === 'saveen');
     const adminPin = adminUser ? adminUser.pin : null;
+
+    if (!isAdmin && !isEnabled) {
+        return `<div class="glass-panel p-10 text-center my-10 rounded-2xl bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-500/20">
+            <i class="fas fa-exclamation-circle text-4xl text-red-500 mb-4"></i>
+            <h3 class="text-xl font-bold text-gray-900 dark:text-white">Access Denied</h3>
+            <p class="text-gray-600 dark:text-gray-400">You do not have permission to view the Member Directory. Please contact the administrator.</p>
+        </div>`;
+    }
 
     if (!window.directoryAuthenticated && !isAdmin) {
         return `
@@ -1912,6 +1930,7 @@ function createUserView() {
         sidebarHtml += `<p class="text-xs text-gray-400 px-2 italic">No pages assigned</p>`;
     } else {
         assignedIds.forEach(pid => {
+            if (pid === 'user_directory' && !currentUser.dirEnabled && currentUser.role !== 'admin') return;
             const p = db.pages.find(pg => pg.id === pid);
             if (p) {
                 const isActive = userSubTab === 'pages' && activeUserPageId === pid;

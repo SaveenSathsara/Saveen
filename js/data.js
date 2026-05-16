@@ -100,27 +100,9 @@ function getDB() {
         }
     });
 
-    // Auto-inject Member Directory if it doesn't exist in Firebase
+    // Auto-inject Member Directory page definition if it doesn't exist
     if (dbData.pages && !dbData.pages.find(p => p.id === 'user_directory')) {
         dbData.pages.push({ id: 'user_directory', title: 'Member Directory', content: '[USER_DIRECTORY]', isSystem: false, showInNav: false });
-    }
-    
-    // Ensure all users have access to Member Directory automatically (so it's visible to everyone who logs in)
-    let needsSave = false;
-    dbData.users.forEach(u => {
-        if (!u.assignedPageIds) u.assignedPageIds = [];
-        if (!u.assignedPageIds.includes('user_directory')) {
-            u.assignedPageIds.push('user_directory');
-            needsSave = true;
-        }
-    });
-    
-    if (needsSave) {
-        // Delay save slightly to allow DB to fully initialize
-        setTimeout(() => {
-            if(window.dbRef) window.dbRef.set(dbData);
-            localStorage.setItem(DB_KEY, JSON.stringify(dbData));
-        }, 1500);
     }
     
     return dbData;
