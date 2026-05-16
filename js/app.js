@@ -5,6 +5,7 @@ let adminTab = 'pages'; // pages, users, forms, galleries
 let activeModal = null; // modal id if open
 let activePublicPageId = null; // public page id being viewed
 let activeUserPageId = null; // user page id being viewed
+let isMobileMenuOpen = false;
 
 const appContainer = document.getElementById('app');
 
@@ -399,9 +400,64 @@ function render() {
     appContainer.appendChild(mainContent);
     renderFooter();
     
+    if (isMobileMenuOpen) {
+        renderMobileMenu();
+    }
+    
     if (activeModal) {
         appContainer.appendChild(activeModal);
     }
+}
+
+function toggleMobileMenu() {
+    isMobileMenuOpen = !isMobileMenuOpen;
+    render();
+}
+
+function renderMobileMenu() {
+    const db = getDB();
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 z-[100] bg-white/90 dark:bg-slate-900/95 backdrop-blur-lg fade-in flex flex-col p-8';
+    
+    let linksHtml = '';
+    db.pages.forEach(p => {
+        if (p.showInNav && !p.isSystem) {
+            linksHtml += `
+                <button onclick="isMobileMenuOpen=false; viewPublicPage('${p.id}')" class="w-full text-left py-4 text-2xl font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-white/5 transition-colors active:text-brand-500">
+                    ${p.title}
+                </button>
+            `;
+        }
+    });
+
+    overlay.innerHTML = `
+        <div class="flex justify-between items-center mb-12">
+            <div class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-purple-600">
+                ${db.settings.siteName || 'Saveen Sathsara'}
+            </div>
+            <button onclick="toggleMobileMenu()" class="w-12 h-12 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-900 dark:text-white">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <div class="flex-grow flex flex-col">
+            ${linksHtml}
+            <div class="mt-8 pt-8 border-t border-gray-100 dark:border-white/5">
+                ${!currentUser 
+                    ? `<button onclick="isMobileMenuOpen=false; navigate('login')" class="w-full py-4 bg-brand-600 text-white rounded-2xl font-bold text-xl shadow-lg shadow-brand-500/30">Login</button>`
+                    : `
+                        <div class="flex flex-col gap-4">
+                            <button onclick="isMobileMenuOpen=false; navigate('${currentUser.role === 'admin' ? 'admin' : 'userView'}')" class="w-full py-4 bg-brand-600 text-white rounded-2xl font-bold text-xl shadow-lg shadow-brand-500/30">Dashboard</button>
+                            <button onclick="isMobileMenuOpen=false; logout()" class="w-full py-4 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-2xl font-bold text-xl">Logout</button>
+                        </div>
+                    `
+                }
+            </div>
+        </div>
+        <div class="mt-auto text-center text-gray-400 dark:text-gray-500 text-sm">
+            &copy; ${new Date().getFullYear()} ${db.settings.siteName || 'Saveen Sathsara'}
+        </div>
+    `;
+    appContainer.appendChild(overlay);
 }
 
 function renderNavbar() {
@@ -469,7 +525,17 @@ function renderNavbar() {
     menu.appendChild(authArea);
     
     nav.appendChild(logo);
+    
+    // Desktop Menu
     nav.appendChild(menu);
+    
+    // Mobile Menu Toggle Button
+    const mobileToggle = document.createElement('button');
+    mobileToggle.className = 'md:hidden w-10 h-10 rounded-xl flex items-center justify-center bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 ml-2';
+    mobileToggle.onclick = toggleMobileMenu;
+    mobileToggle.innerHTML = '<i class="fas fa-bars"></i>';
+    nav.appendChild(mobileToggle);
+    
     appContainer.appendChild(nav);
 }
 
@@ -599,7 +665,7 @@ function createAdminView() {
                 <p class="text-gray-600 dark:text-gray-400">Manage your website content, users, and forms.</p>
             </div>
             
-            <div class="flex p-1 bg-white/50 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5 backdrop-blur-md">
+            <div class="flex p-1 bg-white/50 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5 backdrop-blur-md overflow-x-auto no-scrollbar max-w-full">
                 <button onclick="switchAdminTab('pages')" class="px-4 py-2 rounded-lg text-sm font-medium transition-all ${adminTab === 'pages' ? 'bg-brand-500 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}">
                     <i class="fas fa-file-alt mr-2"></i>Pages
                 </button>
@@ -1474,7 +1540,7 @@ window.renderUserDirectoryHTML = () => {
             <td class="py-3 px-4 font-mono text-gray-600 dark:text-gray-400">${du.id}</td>
             <td class="py-3 px-4 font-medium text-gray-900 dark:text-white">${du.shortName}</td>
             <td class="py-3 px-4 flex gap-2">
-                <button onclick="viewDirectoryUserFullName('${du.id}')" class="text-xs bg-brand-100 text-brand-700 px-3 py-1.5 rounded-lg dark:bg-brand-500/20 dark:text-brand-300 hover:bg-brand-200 dark:hover:bg-brand-500/30 transition-colors font-medium">View Full Name</button>
+                <button onclick="viewDirectoryUserFullName('${du.id}')" class="text-xs bg-brand-100 text-brand-700 px-4 py-2 rounded-xl dark:bg-brand-500/20 dark:text-brand-300 hover:bg-brand-200 dark:hover:bg-brand-500/30 transition-colors font-bold whitespace-nowrap">View Full Name</button>
             </td>
         </tr>
     `).join('');
@@ -1549,7 +1615,7 @@ window.openAddDirectoryUserForm = () => {
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 z-[200] flex items-center justify-center modal-overlay fade-in p-4';
     modal.innerHTML = `
-        <div class="glass-panel w-full max-w-md rounded-3xl p-8 slide-up relative flex flex-col max-h-[90vh]">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-6 sm:p-8 slide-up relative flex flex-col max-h-[90vh]">
             <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Add Directory User</h3>
             
             <form id="addDirUserForm" onsubmit="submitDirectoryUser(event)" class="space-y-5 overflow-y-auto pr-2 custom-scrollbar">
@@ -1812,10 +1878,10 @@ function createUserView() {
     
     // Sidebar for page selection and profile
     const sidebar = document.createElement('div');
-    sidebar.className = 'w-full md:w-64 shrink-0';
+    sidebar.className = 'w-full md:w-64 shrink-0 mb-4 md:mb-0';
     
     let sidebarHtml = `
-        <div class="glass-panel p-6 rounded-2xl sticky top-28">
+        <div class="glass-panel p-6 rounded-2xl md:sticky md:top-28">
             <div class="mb-8 px-2 flex flex-col items-center text-center">
                 <div class="relative group cursor-pointer mb-4" onclick="switchUserTab('profile')">
                     ${currentUser.profilePic 

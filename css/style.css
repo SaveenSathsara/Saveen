@@ -291,3 +291,45 @@ th, td {
         bottom: 80px;
     }
 }
+
+/* Responsive Utilities */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+.no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Mobile Table Shadow Indicator */
+.overflow-x-auto {
+    position: relative;
+    background-image: linear-gradient(to right, white, white),
+        linear-gradient(to right, white, white),
+        linear-gradient(to right, rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0)),
+        linear-gradient(to left, rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0));
+    background-position: left center, right center, left center, right center;
+    background-repeat: no-repeat;
+    background-color: white;
+    background-size: 20px 100%, 20px 100%, 10px 100%, 10px 100%;
+    background-attachment: local, local, scroll, scroll;
+}
+
+.dark .overflow-x-auto {
+    background-image: linear-gradient(to right, #0f172a, #0f172a),
+        linear-gradient(to right, #0f172a, #0f172a),
+        linear-gradient(to right, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0)),
+        linear-gradient(to left, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0));
+    background-color: transparent;
+}
+
+/* Improve Typography on Mobile */
+@media (max-width: 640px) {
+    .prose h1 { font-size: 1.875rem !important; line-height: 2.25rem !important; }
+    .prose h2 { font-size: 1.5rem !important; line-height: 2rem !important; }
+    .prose { font-size: 0.95rem !important; }
+    
+    .glass-panel { padding: 1.25rem !important; }
+    
+    main { padding-top: 5rem !important; }
+}
