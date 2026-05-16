@@ -323,13 +323,51 @@ th, td {
     background-color: transparent;
 }
 
-/* Improve Typography on Mobile */
+/* Improve Typography & Scale on Mobile */
 @media (max-width: 640px) {
-    .prose h1 { font-size: 1.875rem !important; line-height: 2.25rem !important; }
-    .prose h2 { font-size: 1.5rem !important; line-height: 2rem !important; }
-    .prose { font-size: 0.95rem !important; }
+    html {
+        font-size: 14px; /* Scale down the base size */
+    }
+
+    .prose h1 { font-size: 1.6rem !important; line-height: 2rem !important; margin-bottom: 1rem !important; }
+    .prose h2 { font-size: 1.3rem !important; line-height: 1.6rem !important; margin-top: 1.5rem !important; margin-bottom: 0.75rem !important; }
+    .prose p { margin-bottom: 1rem !important; line-height: 1.5 !important; }
+    .prose { font-size: 0.9rem !important; }
     
-    .glass-panel { padding: 1.25rem !important; }
+    .glass-panel { 
+        padding: 1rem !important; 
+        border-radius: 1.5rem !important;
+    }
     
-    main { padding-top: 5rem !important; }
+    main { 
+        padding-top: 4.5rem !important; 
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }
+
+    /* Shrink inputs and buttons slightly for a cleaner look */
+    .glass-input, input, select, textarea {
+        padding-top: 0.6rem !important;
+        padding-bottom: 0.6rem !important;
+        font-size: 0.9rem !important;
+    }
+
+    button {
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+        font-size: 0.85rem !important;
+    }
+
+    /* Navbar compactness */
+    nav {
+        padding-top: 0.75rem !important;
+        padding-bottom: 0.75rem !important;
+    }
+
+    .chat-window {
+        width: calc(100% - 24px);
+        right: 12px;
+        bottom: 75px;
+        border-radius: 1.5rem;
+    }
 }

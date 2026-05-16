@@ -466,7 +466,7 @@ function renderNavbar() {
     
     const db = getDB();
     const logo = document.createElement('div');
-    logo.className = 'text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-purple-600 cursor-pointer flex items-center gap-2';
+    logo.className = 'text-xl md:text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-brand-500 to-purple-600 cursor-pointer flex items-center gap-2';
     
     if (db.settings && db.settings.logo) {
         logo.innerHTML = `<img src="${db.settings.logo}" class="h-8 w-auto object-contain mr-1"> ${db.settings.siteName || 'Saveen Sathsara'}`;
