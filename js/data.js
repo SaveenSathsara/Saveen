@@ -2,9 +2,11 @@ const DB_KEY = 'saveen_cms_data';
 
 const defaultData = {
     users: [
-        { id: 'u1', username: 'saveen', pin: '760543250', role: 'admin', assignedPageIds: [], chatEnabled: true },
-        { id: 'u2', username: 'support', pin: '1234', role: 'admin', assignedPageIds: [], chatEnabled: true, profilePic: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' },
-        { id: 'u3', username: 'testuser', pin: '0000', role: 'user', assignedPageIds: ['user_directory'], chatEnabled: true, profilePic: 'https://cdn-icons-png.flaticon.com/512/147/147144.png' }
+        { id: 'u1', username: 'saveen', pin: '760543250', role: 'admin', assignedPageIds: [], chatEnabled: true, chatNumber: '11111', chatPin: '750711', profilePic: '', dirEnabled: true, dirLoginPin: '7605', dirViewPin: '7605', dirAddPin: '7605', dirEditPin: '7605', dirDeletePin: '7605', dirSearchFullNamePin: '7605' },
+        { id: 'lx09fqlo7', username: 'sehiru', pin: '123456', role: 'user', assignedPageIds: ['user_directory'], chatEnabled: true, chatNumber: '22222', chatPin: '750711', profilePic: '', dirEnabled: true, dirLoginPin: '123456', dirViewPin: '123456', dirAddPin: '123456', dirEditPin: '123456', dirDeletePin: '123456', dirSearchFullNamePin: '123456' },
+        { id: 'xejavtvx6', username: 'imira', pin: '123456', role: 'user', assignedPageIds: ['user_directory'], chatEnabled: true, chatNumber: '33333', chatPin: '750711', profilePic: '', dirEnabled: true, dirLoginPin: '123456', dirViewPin: '123456', dirAddPin: '123456', dirEditPin: '123456', dirDeletePin: '123456', dirSearchFullNamePin: '123456' },
+        { id: 'kiylj5vvs', username: 'vishwa', pin: '123456', role: 'user', assignedPageIds: ['user_directory'], chatEnabled: true, chatNumber: '44444', chatPin: '750711', profilePic: '', dirEnabled: true, dirLoginPin: '123456', dirViewPin: '123456', dirAddPin: '123456', dirEditPin: '123456', dirDeletePin: '123456', dirSearchFullNamePin: '123456' },
+        { id: 'tj94hfok7', username: 'sathsara', pin: '123456', role: 'user', assignedPageIds: ['user_directory'], chatEnabled: true, chatNumber: '55555', chatPin: '750711', profilePic: '', dirEnabled: true, dirLoginPin: '123456', dirViewPin: '123456', dirAddPin: '123456', dirEditPin: '123456', dirDeletePin: '123456', dirSearchFullNamePin: '123456' }
     ],
     pages: [
         { id: 'home', title: 'Home', content: '<h1 class="text-4xl md:text-6xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-purple-600 dark:from-brand-400 dark:to-purple-500">Welcome</h1><p class="text-xl text-gray-600 dark:text-gray-300">This is Saveen Sathsara\'s Personal Web Platform.</p>', isSystem: true },
@@ -104,6 +106,31 @@ function getDB() {
     if (dbData.pages && !dbData.pages.find(p => p.id === 'user_directory')) {
         dbData.pages.push({ id: 'user_directory', title: 'Member Directory', content: '[USER_DIRECTORY]', isSystem: false, showInNav: false });
     }
+
+    // Auto-inject Inventory page definition if it doesn't exist
+    if (dbData.pages && !dbData.pages.find(p => p.id === 'inventory')) {
+        dbData.pages.push({ id: 'inventory', title: 'Inventory Management', content: '[INVENTORY]', isSystem: false, showInNav: false });
+    }
+
+    // Initialize Inventory Data Structures
+    if (!dbData.inventoryItems) dbData.inventoryItems = [];
+    if (!dbData.inventoryCategories) {
+        dbData.inventoryCategories = [
+            { id: 'cat_books', name: 'Books' }
+        ];
+    }
+    if (dbData.inventoryCategories && !dbData.inventoryCategories.find(c => c.name.toLowerCase() === 'books')) {
+        dbData.inventoryCategories.push({ id: 'cat_books', name: 'Books' });
+    }
+    if (!dbData.inventoryLocations) dbData.inventoryLocations = [];
+    if (!dbData.inventoryPlaces) dbData.inventoryPlaces = [];
+
+    // Ensure all users have an Inventory Access PIN field initialized
+    dbData.users.forEach(u => {
+        if (u.invAccessPin === undefined) {
+            u.invAccessPin = u.role === 'admin' ? '2014518' : '123456';
+        }
+    });
     
     return dbData;
 }

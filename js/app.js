@@ -1100,6 +1100,14 @@ function openUserModal(userId = null) {
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Search Full Name PIN</label>
                             <input type="text" id="userDirSearchFullNamePin" value="${user.dirSearchFullNamePin || ''}" placeholder="PIN to search full name" class="glass-input w-full px-3 py-2 rounded-lg bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 text-sm">
                         </div>
+                </div>
+                
+                <div class="bg-gray-50/50 dark:bg-slate-800/30 p-4 rounded-xl border border-gray-200 dark:border-white/5 mt-4 space-y-4">
+                    <h4 class="font-bold text-sm text-brand-600 dark:text-brand-400 flex items-center gap-2"><i class="fas fa-boxes"></i> Inventory Access Configuration</h4>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Inventory Access PIN</label>
+                        <input type="text" id="userInvAccessPin" value="${user.invAccessPin || ''}" placeholder="PIN to open inventory" class="glass-input w-full px-3 py-2 rounded-lg bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 text-sm">
+                        <p class="text-[10px] mt-1 text-gray-500">PIN that unlocks the secure Inventory page.</p>
                     </div>
                 </div>
                 
@@ -1180,6 +1188,7 @@ function saveUser(e, editId) {
     const dirDeletePin = document.getElementById('userDirDeletePin').value;
     const dirSearchFullNamePin = document.getElementById('userDirSearchFullNamePin').value;
     const dirEnabled = document.getElementById('userDirEnabled').checked;
+    const invAccessPin = document.getElementById('userInvAccessPin').value;
     
     if (editId) {
         const userObj = db.users.find(u => u.id === editId);
@@ -1200,6 +1209,7 @@ function saveUser(e, editId) {
         userObj.dirDeletePin = dirDeletePin;
         userObj.dirSearchFullNamePin = dirSearchFullNamePin;
         userObj.dirEnabled = dirEnabled;
+        userObj.invAccessPin = invAccessPin;
     } else {
         if (db.users.find(u => u.username === username)) {
             alert('Username already exists!');
@@ -1221,7 +1231,8 @@ function saveUser(e, editId) {
             dirEditPin,
             dirDeletePin,
             dirSearchFullNamePin,
-            dirEnabled
+            dirEnabled,
+            invAccessPin
         });
     }
     
@@ -1878,6 +1889,924 @@ window.submitDirectoryUser = (e) => {
     }, 3000);
 };
 
+// ==========================================
+//           INVENTORY MANAGEMENT
+// ==========================================
+
+window.inventoryAuthenticated = false;
+
+window.renderInventoryHTML = () => {
+    const db = getDB();
+    const isAdmin = currentUser && currentUser.role === 'admin';
+    
+    if (!currentUser) {
+        return `
+            <div class="glass-panel p-10 text-center my-10 rounded-2xl bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-500/20 font-sans">
+                <i class="fas fa-exclamation-circle text-4xl text-red-500 mb-4"></i>
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Access Denied</h3>
+                <p class="text-gray-600 dark:text-gray-400">You must be logged in to view the Inventory. Please contact the administrator.</p>
+            </div>
+        `;
+    }
+
+    // Authenticate with specific Inventory Access PIN
+    if (!window.inventoryAuthenticated) {
+        return `
+            <div class="glass-panel p-8 text-center max-w-md mx-auto my-10 rounded-2xl bg-white/90 dark:bg-slate-900/50 shadow-xl border border-gray-200 dark:border-white/10 relative font-sans">
+                <div class="absolute -top-10 -right-10 w-24 h-24 bg-brand-400 rounded-full filter blur-3xl opacity-30"></div>
+                <div class="w-16 h-16 bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-lg border border-brand-200 dark:border-brand-500/20">
+                    <i class="fas fa-boxes"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-2 text-gray-900 dark:text-white">Inventory Secured</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Please enter your Inventory Access PIN to view items.</p>
+                <div class="flex gap-2 justify-center">
+                    <input type="password" id="invAccessPinInput" placeholder="Enter PIN" class="glass-input px-4 py-2 rounded-xl text-center focus:ring-2 focus:ring-brand-500">
+                    <button onclick="checkInventoryAccess()" class="bg-brand-600 text-white px-6 py-2 rounded-xl font-medium shadow-lg hover:bg-brand-500 transition-colors">Unlock</button>
+                </div>
+                <div id="invAccessError" class="text-red-500 text-xs mt-3 hidden font-bold">Incorrect PIN!</div>
+            </div>
+        `;
+    }
+
+    const items = db.inventoryItems || [];
+    const categories = db.inventoryCategories || [];
+    const locations = db.inventoryLocations || [];
+    const places = db.inventoryPlaces || [];
+
+    // Calculate total value of active items
+    const totalValue = items.reduce((sum, item) => {
+        const valStr = (item.price || '').replace(/[^0-9.]/g, '');
+        const val = parseFloat(valStr);
+        return sum + (isNaN(val) ? 0 : val);
+    }, 0);
+
+    // Format statistics HTML
+    const statsHtml = `
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 font-sans">
+            <div class="glass-panel p-4 rounded-xl border border-gray-200 dark:border-white/5 flex items-center gap-4 bg-white/50 dark:bg-slate-800/10">
+                <div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow"><i class="fas fa-box text-lg"></i></div>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 tracking-wider">Total Items</div>
+                    <div class="text-lg font-bold text-gray-900 dark:text-white">${items.length}</div>
+                </div>
+            </div>
+            <div class="glass-panel p-4 rounded-xl border border-gray-200 dark:border-white/5 flex items-center gap-4 bg-white/50 dark:bg-slate-800/10">
+                <div class="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-500/20 text-green-600 dark:text-green-400 flex items-center justify-center shadow"><i class="fas fa-wallet text-lg"></i></div>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 tracking-wider">Total Value</div>
+                    <div class="text-lg font-bold text-gray-900 dark:text-white">Rs. ${totalValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                </div>
+            </div>
+            <div class="glass-panel p-4 rounded-xl border border-gray-200 dark:border-white/5 flex items-center gap-4 bg-white/50 dark:bg-slate-800/10">
+                <div class="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shadow"><i class="fas fa-layer-group text-lg"></i></div>
+                <div>
+                    <div class="text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 tracking-wider">Categories</div>
+                    <div class="text-lg font-bold text-gray-900 dark:text-white">${categories.length}</div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Dropdown filters options
+    let catFilterOptions = '';
+    categories.forEach(c => {
+        catFilterOptions += `<option value="${c.id}">${c.name}</option>`;
+    });
+
+    let locFilterOptions = '';
+    locations.forEach(l => {
+        locFilterOptions += `<option value="${l.id}">${l.name}</option>`;
+    });
+
+    // Render items cards
+    let itemsHtml = '';
+    items.forEach(item => {
+        const cat = categories.find(c => c.id === item.category);
+        const catName = cat ? cat.name : 'Uncategorized';
+        const loc = locations.find(l => l.id === item.location);
+        const locName = loc ? loc.name : 'Unknown Location';
+        const pl = places.find(p => p.id === item.place);
+        const placeName = pl ? pl.name : 'Unknown Place';
+        
+        let priceFormatted = item.price;
+        const parsedPrice = parseFloat(item.price.replace(/[^0-9.]/g, ''));
+        if (!isNaN(parsedPrice)) {
+            priceFormatted = 'Rs. ' + parsedPrice.toLocaleString(undefined, {minimumFractionDigits: 2});
+        }
+
+        const isBook = catName.toLowerCase() === 'books' || item.category === 'cat_books';
+        const isbnHtml = isBook && item.isbn ? `
+            <div class="flex justify-between items-center bg-gray-50 dark:bg-slate-800/40 p-2 rounded-lg border border-gray-100 dark:border-white/5">
+                <span class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase"><i class="fas fa-barcode mr-1 text-brand-500"></i> ISBN</span>
+                <span class="text-xs font-mono font-semibold text-gray-700 dark:text-gray-300 truncate max-w-[140px]" title="${item.isbn}">${item.isbn}</span>
+            </div>
+        ` : '';
+
+        const imeiHtml = item.imei ? `
+            <div class="flex justify-between items-center bg-gray-50 dark:bg-slate-800/40 p-2 rounded-lg border border-gray-100 dark:border-white/5">
+                <span class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase"><i class="fas fa-mobile-alt mr-1 text-blue-500"></i> IMEI</span>
+                <span class="text-xs font-mono font-semibold text-gray-700 dark:text-gray-300 truncate max-w-[140px]" title="${item.imei}">${item.imei}</span>
+            </div>
+        ` : '';
+
+        const serialHtml = item.serial ? `
+            <div class="flex justify-between items-center bg-gray-50 dark:bg-slate-800/40 p-2 rounded-lg border border-gray-100 dark:border-white/5">
+                <span class="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase"><i class="fas fa-fingerprint mr-1 text-purple-500"></i> Serial</span>
+                <span class="text-xs font-mono font-semibold text-gray-700 dark:text-gray-300 truncate max-w-[140px]" title="${item.serial}">${item.serial}</span>
+            </div>
+        ` : '';
+
+        itemsHtml += `
+            <div class="inv-item-card glass-panel rounded-2xl overflow-hidden border border-gray-200 dark:border-white/5 bg-white/70 dark:bg-slate-900/40 relative group hover:scale-[1.01] hover:-translate-y-1 transition-all duration-300 flex flex-col h-full font-sans"
+                 data-name="${item.name}"
+                 data-code="${item.productCode}"
+                 data-imei="${item.imei || ''}"
+                 data-serial="${item.serial || ''}"
+                 data-isbn="${item.isbn || ''}"
+                 data-category="${item.category}"
+                 data-location="${item.location}"
+                 data-place="${item.place}">
+                 
+                <!-- Image Header -->
+                <div class="w-full aspect-[4/3] relative bg-gray-100 dark:bg-slate-850 overflow-hidden group/img shrink-0 border-b border-gray-100 dark:border-white/5">
+                    ${item.photo ? `
+                        <img src="${item.photo}" class="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105 cursor-zoom-in" onclick="viewInventoryImage('${item.photo}', '${item.name}')">
+                    ` : `
+                        <div class="w-full h-full bg-gradient-to-tr from-brand-500/10 to-purple-500/10 flex items-center justify-center text-brand-500/40">
+                            <i class="fas fa-box text-4xl animate-pulse"></i>
+                        </div>
+                    `}
+                    
+                    <!-- Top Float Badges -->
+                    <div class="absolute top-3 left-3 bg-white/90 dark:bg-slate-900/90 text-gray-800 dark:text-gray-200 font-bold text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-lg backdrop-blur-md shadow border border-gray-200/50 dark:border-white/10">
+                        ${catName}
+                    </div>
+                    
+                    <div class="absolute top-3 right-3 bg-brand-600 text-white font-black text-xs px-2.5 py-1.2 rounded-lg shadow-lg">
+                        ${priceFormatted}
+                    </div>
+                </div>
+
+                <!-- Card Content -->
+                <div class="p-5 flex-grow flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start gap-2 mb-2">
+                            <h4 class="font-bold text-gray-900 dark:text-white text-base leading-tight truncate flex-grow" title="${item.name}">${item.name}</h4>
+                            <span class="text-[10px] text-gray-400 dark:text-gray-500 font-mono tracking-wider shrink-0 mt-0.5" title="Product Code">#${item.productCode}</span>
+                        </div>
+                        
+                        <!-- Location path -->
+                        <div class="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mb-4">
+                            <i class="fas fa-map-marker-alt text-brand-500 text-xs shrink-0"></i>
+                            <span class="font-semibold text-gray-700 dark:text-gray-300 truncate">${locName}</span>
+                            <span class="text-gray-300 font-bold">&rarr;</span>
+                            <span class="truncate font-medium text-gray-600 dark:text-gray-400">${placeName}</span>
+                        </div>
+
+                        <!-- Technical Specs Grid -->
+                        ${(isbnHtml || imeiHtml || serialHtml) ? `
+                            <div class="grid grid-cols-1 gap-1.5 border-t border-gray-100 dark:border-white/5 pt-3 mt-2">
+                                ${isbnHtml}
+                                ${imeiHtml}
+                                ${serialHtml}
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <!-- Footer Controls -->
+                    <div class="flex justify-end gap-2 border-t border-gray-100 dark:border-white/5 pt-4 mt-5">
+                        <button onclick="openEditInventoryItemModal('${item.id}')" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-xl dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 transition-all font-bold flex items-center gap-1"><i class="fas fa-edit"></i> Edit</button>
+                        <button onclick="deleteInventoryItem('${item.id}')" class="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-xl dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20 transition-all font-bold flex items-center gap-1"><i class="fas fa-trash-alt"></i> Delete</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    return `
+        <div class="my-8 glass-panel p-6 md:p-8 rounded-3xl shadow-xl relative overflow-hidden bg-white/90 dark:bg-slate-900/50 font-sans" id="inventoryContainer">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-brand-500 to-purple-500"></div>
+            
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-gray-100 dark:border-white/5 pb-4">
+                <div>
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><i class="fas fa-boxes text-brand-500"></i> Inventory Management</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Track items, select places dynamically, manage categories, IMEI and ISBN</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="openInventoryConfigModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-all border border-gray-200 dark:border-transparent flex items-center gap-2">
+                        <i class="fas fa-cog"></i> Config
+                    </button>
+                    <button onclick="openAddInventoryItemModal()" class="bg-gradient-to-r from-brand-600 to-purple-600 hover:from-brand-500 hover:to-purple-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-brand-500/20 glow-btn flex items-center gap-2">
+                        <i class="fas fa-plus"></i> Add Item
+                    </button>
+                </div>
+            </div>
+
+            <!-- Statistics Grid -->
+            ${statsHtml}
+
+            <!-- Filters & Search Section -->
+            <div class="bg-gray-50/50 dark:bg-slate-800/10 p-4 rounded-2xl border border-gray-200 dark:border-white/5 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div class="relative flex-grow md:col-span-1">
+                        <i class="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                        <input type="text" id="invSearchInput" onkeyup="filterInventoryItems()" placeholder="Search items..." class="glass-input w-full pl-10 pr-4 py-2 rounded-xl text-sm bg-white dark:bg-slate-800/50">
+                    </div>
+                    <div>
+                        <select id="invFilterCategory" onchange="filterInventoryItems()" class="glass-input w-full px-4 py-2 rounded-xl text-sm bg-white dark:bg-slate-800/50 dark:[&>option]:bg-slate-800">
+                            <option value="">All Categories</option>
+                            ${catFilterOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <select id="invFilterLocation" onchange="updatePlacesFilterDropdown()" class="glass-input w-full px-4 py-2 rounded-xl text-sm bg-white dark:bg-slate-800/50 dark:[&>option]:bg-slate-800">
+                            <option value="">All Locations</option>
+                            ${locFilterOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <select id="invFilterPlace" onchange="filterInventoryItems()" class="glass-input w-full px-4 py-2 rounded-xl text-sm bg-white dark:bg-slate-800/50 dark:[&>option]:bg-slate-800">
+                            <option value="">All Places</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Items Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in" id="invItemsGrid">
+                ${itemsHtml || `
+                    <div class="col-span-full text-center py-16 text-gray-500 dark:text-gray-400 bg-gray-50/50 dark:bg-white/[0.01] rounded-2xl border border-dashed border-gray-200 dark:border-white/5 flex flex-col items-center justify-center">
+                        <i class="fas fa-box-open text-5xl text-brand-500/40 mb-4 animate-pulse"></i>
+                        <h4 class="text-lg font-bold text-gray-800 dark:text-white mb-1">No items found</h4>
+                        <p class="text-sm text-gray-500">Add categories, locations, places, and inventory items to get started!</p>
+                    </div>
+                `}
+            </div>
+        </div>
+    `;
+};
+
+window.checkInventoryAccess = () => {
+    const pin = document.getElementById('invAccessPinInput').value;
+    const db = getDB();
+    const userObj = db.users.find(u => u.id === currentUser.id);
+    const userInvPin = userObj ? userObj.invAccessPin : null;
+    
+    // Support either inventory PIN or master login PIN for maximum resilience
+    const isCorrect = (userInvPin && pin === userInvPin) || (userObj && pin === userObj.pin);
+    
+    if (isCorrect) {
+        window.inventoryAuthenticated = true;
+        render();
+    } else {
+        document.getElementById('invAccessError').classList.remove('hidden');
+    }
+};
+
+window.filterInventoryItems = () => {
+    const searchTerm = document.getElementById('invSearchInput')?.value.toLowerCase() || '';
+    const catFilter = document.getElementById('invFilterCategory')?.value || '';
+    const locFilter = document.getElementById('invFilterLocation')?.value || '';
+    const placeFilter = document.getElementById('invFilterPlace')?.value || '';
+    
+    const cards = document.querySelectorAll('.inv-item-card');
+    let hasVisible = false;
+    
+    cards.forEach(card => {
+        const name = card.getAttribute('data-name').toLowerCase();
+        const code = card.getAttribute('data-code').toLowerCase();
+        const imei = card.getAttribute('data-imei').toLowerCase();
+        const serial = card.getAttribute('data-serial').toLowerCase();
+        const isbn = card.getAttribute('data-isbn').toLowerCase();
+        const categoryId = card.getAttribute('data-category');
+        const locationId = card.getAttribute('data-location');
+        const placeId = card.getAttribute('data-place');
+        
+        const matchSearch = name.includes(searchTerm) || 
+                            code.includes(searchTerm) || 
+                            imei.includes(searchTerm) || 
+                            serial.includes(searchTerm) || 
+                            isbn.includes(searchTerm);
+                            
+        const matchCat = catFilter === '' || categoryId === catFilter;
+        const matchLoc = locFilter === '' || locationId === locFilter;
+        const matchPlace = placeFilter === '' || placeId === placeFilter;
+        
+        if (matchSearch && matchCat && matchLoc && matchPlace) {
+            card.style.display = '';
+            hasVisible = true;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+};
+
+window.updatePlacesFilterDropdown = () => {
+    const locSelect = document.getElementById('invFilterLocation');
+    const placeSelect = document.getElementById('invFilterPlace');
+    if (!locSelect || !placeSelect) return;
+    const locId = locSelect.value;
+    
+    const db = getDB();
+    const places = (db.inventoryPlaces || []).filter(p => p.locationId === locId);
+    
+    let html = '<option value="">All Places</option>';
+    places.forEach(p => {
+        html += `<option value="${p.id}">${p.name}</option>`;
+    });
+    placeSelect.innerHTML = html;
+    
+    window.filterInventoryItems();
+};
+
+window.openAddInventoryItemModal = () => {
+    const db = getDB();
+    const categories = db.inventoryCategories || [];
+    const locations = db.inventoryLocations || [];
+    
+    let catOptions = '';
+    categories.forEach(c => {
+        catOptions += `<option value="${c.id}">${c.name}</option>`;
+    });
+    
+    let locOptions = '';
+    locations.forEach(l => {
+        locOptions += `<option value="${l.id}">${l.name}</option>`;
+    });
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[100] flex items-center justify-center modal-overlay fade-in p-4';
+    modal.innerHTML = `
+        <div class="glass-panel w-full max-w-lg rounded-2xl p-6 md:p-8 slide-up relative max-h-[90vh] overflow-y-auto custom-scrollbar font-sans">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><i class="fas fa-box-open text-brand-500"></i> Add Inventory Item</h3>
+                <button onclick="closeModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <form onsubmit="submitInventoryItem(event)" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Item Name *</label>
+                        <input type="text" id="invItemName" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Product Code *</label>
+                        <input type="text" id="invItemProductCode" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Category *</label>
+                        <select id="invItemCategory" onchange="checkCategorySelectionInForm()" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50 dark:[&>option]:bg-slate-800">
+                            <option value="">-- Select Category --</option>
+                            ${catOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Price *</label>
+                        <input type="text" id="invItemPrice" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50" placeholder="e.g. 1500.00">
+                    </div>
+                </div>
+
+                <div id="invIsbnContainer" class="hidden transition-all duration-300 bg-brand-500/10 p-3 rounded-xl border border-brand-500/20">
+                    <label class="block text-xs font-semibold text-brand-600 dark:text-brand-400 mb-1"><i class="fas fa-barcode mr-1"></i> ISBN Number *</label>
+                    <input type="text" id="invItemIsbn" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/60 dark:bg-slate-800/60">
+                    <p class="text-[10px] mt-1 text-brand-500">ISBN field is enabled automatically for books category.</p>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Location *</label>
+                        <select id="invItemLocation" onchange="updatePlacesDropdownInForm()" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50 dark:[&>option]:bg-slate-800">
+                            <option value="">-- Select Location --</option>
+                            ${locOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Place *</label>
+                        <select id="invItemPlace" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50 dark:[&>option]:bg-slate-800">
+                            <option value="">-- Select Location First --</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">IMEI Number</label>
+                        <input type="text" id="invItemImei" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50" placeholder="Optional">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Serial Number</label>
+                        <input type="text" id="invItemSerial" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50" placeholder="Optional">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Item Photo</label>
+                    <div class="flex gap-4">
+                        <div id="invPhotoPreview" class="w-16 h-16 rounded-xl bg-gray-100 dark:bg-slate-850 flex items-center justify-center overflow-hidden shrink-0 border border-gray-200 dark:border-white/10 shadow-inner">
+                            <i class="fas fa-box text-gray-300 text-xl"></i>
+                        </div>
+                        <div class="flex-grow space-y-2">
+                            <input type="text" id="invItemPhoto" oninput="document.getElementById('invPhotoPreview').innerHTML = this.value ? '<img src=\\' + this.value + \\' class=\\'w-full h-full object-cover\\'>' : '<i class=\\'fas fa-box text-gray-300 text-xl\\'></i>'" class="glass-input w-full px-4 py-2 rounded-lg text-xs" placeholder="Image URL">
+                            <button type="button" onclick="triggerInventoryPhotoUpload()" class="w-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-white py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-2 border border-gray-200 dark:border-transparent">
+                                <i class="fas fa-camera"></i> Upload Photo / Camera
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
+                    <button type="button" onclick="closeModal()" class="px-6 py-2.5 rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors text-sm font-semibold">Cancel</button>
+                    <button type="submit" class="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl shadow-lg shadow-brand-500/20 transition-all font-bold glow-btn text-sm">Add Item</button>
+                </div>
+            </form>
+        </div>
+    `;
+    activeModal = modal;
+    render();
+};
+
+window.openEditInventoryItemModal = (itemId) => {
+    const db = getDB();
+    const item = db.inventoryItems.find(i => i.id === itemId);
+    if (!item) return;
+    
+    const categories = db.inventoryCategories || [];
+    const locations = db.inventoryLocations || [];
+    
+    let catOptions = '';
+    categories.forEach(c => {
+        const isSel = c.id === item.category ? 'selected' : '';
+        catOptions += `<option value="${c.id}" ${isSel}>${c.name}</option>`;
+    });
+    
+    let locOptions = '';
+    locations.forEach(l => {
+        const isSel = l.id === item.location ? 'selected' : '';
+        locOptions += `<option value="${l.id}" ${isSel}>${l.name}</option>`;
+    });
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[100] flex items-center justify-center modal-overlay fade-in p-4';
+    modal.innerHTML = `
+        <div class="glass-panel w-full max-w-lg rounded-2xl p-6 md:p-8 slide-up relative max-h-[90vh] overflow-y-auto custom-scrollbar font-sans">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><i class="fas fa-edit text-brand-500"></i> Edit Inventory Item</h3>
+                <button onclick="closeModal()" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <form onsubmit="submitInventoryItem(event, '${itemId}')" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Item Name *</label>
+                        <input type="text" id="invItemName" value="${item.name}" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Product Code *</label>
+                        <input type="text" id="invItemProductCode" value="${item.productCode}" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Category *</label>
+                        <select id="invItemCategory" onchange="checkCategorySelectionInForm()" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50 dark:[&>option]:bg-slate-800">
+                            <option value="">-- Select Category --</option>
+                            ${catOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Price *</label>
+                        <input type="text" id="invItemPrice" value="${item.price}" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50">
+                    </div>
+                </div>
+
+                <div id="invIsbnContainer" class="hidden transition-all duration-300 bg-brand-500/10 p-3 rounded-xl border border-brand-500/20">
+                    <label class="block text-xs font-semibold text-brand-600 dark:text-brand-400 mb-1"><i class="fas fa-barcode mr-1"></i> ISBN Number *</label>
+                    <input type="text" id="invItemIsbn" value="${item.isbn || ''}" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/60 dark:bg-slate-800/60">
+                    <p class="text-[10px] mt-1 text-brand-500">ISBN is required for books category.</p>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Location *</label>
+                        <select id="invItemLocation" onchange="updatePlacesDropdownInForm()" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50 dark:[&>option]:bg-slate-800">
+                            <option value="">-- Select Location --</option>
+                            ${locOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Place *</label>
+                        <select id="invItemPlace" required class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50 dark:[&>option]:bg-slate-800">
+                            <option value="">-- Select Location First --</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">IMEI Number</label>
+                        <input type="text" id="invItemImei" value="${item.imei || ''}" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Serial Number</label>
+                        <input type="text" id="invItemSerial" value="${item.serial || ''}" class="glass-input w-full px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Item Photo</label>
+                    <div class="flex gap-4">
+                        <div id="invPhotoPreview" class="w-16 h-16 rounded-xl bg-gray-100 dark:bg-slate-850 flex items-center justify-center overflow-hidden shrink-0 border border-gray-200 dark:border-white/10 shadow-inner">
+                            ${item.photo ? `<img src="${item.photo}" class="w-full h-full object-cover">` : '<i class="fas fa-box text-gray-300 text-xl"></i>'}
+                        </div>
+                        <div class="flex-grow space-y-2">
+                            <input type="text" id="invItemPhoto" value="${item.photo || ''}" oninput="document.getElementById('invPhotoPreview').innerHTML = this.value ? '<img src=\\' + this.value + \\' class=\\'w-full h-full object-cover\\'>' : '<i class=\\'fas fa-box text-gray-300 text-xl\\'></i>'" class="glass-input w-full px-4 py-2 rounded-lg text-xs" placeholder="Image URL">
+                            <button type="button" onclick="triggerInventoryPhotoUpload()" class="w-full bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-700 dark:text-white py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-2 border border-gray-200 dark:border-transparent">
+                                <i class="fas fa-camera"></i> Upload Photo / Camera
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
+                    <button type="button" onclick="closeModal()" class="px-6 py-2.5 rounded-xl text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors text-sm font-semibold">Cancel</button>
+                    <button type="submit" class="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl shadow-lg shadow-brand-500/20 transition-all font-bold glow-btn text-sm">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    `;
+    activeModal = modal;
+    render();
+    
+    // Select current place
+    window.updatePlacesDropdownInForm(item.place);
+    // Display ISBN if already books
+    window.checkCategorySelectionInForm();
+};
+
+window.submitInventoryItem = (e, editId = null) => {
+    e.preventDefault();
+    const db = getDB();
+    
+    const name = document.getElementById('invItemName').value.trim();
+    const productCode = document.getElementById('invItemProductCode').value.trim();
+    const category = document.getElementById('invItemCategory').value;
+    const price = document.getElementById('invItemPrice').value.trim();
+    const location = document.getElementById('invItemLocation').value;
+    const place = document.getElementById('invItemPlace').value;
+    const imei = document.getElementById('invItemImei').value.trim();
+    const serial = document.getElementById('invItemSerial').value.trim();
+    const photo = document.getElementById('invItemPhoto').value.trim();
+    
+    let isbn = '';
+    const isbnContainer = document.getElementById('invIsbnContainer');
+    if (isbnContainer && !isbnContainer.classList.contains('hidden')) {
+        isbn = document.getElementById('invItemIsbn').value.trim();
+        if (!isbn) {
+            alert('ISBN number is required for Books!');
+            return;
+        }
+    }
+    
+    if (editId) {
+        const item = db.inventoryItems.find(i => i.id === editId);
+        if (item) {
+            item.name = name;
+            item.productCode = productCode;
+            item.category = category;
+            item.price = price;
+            item.location = location;
+            item.place = place;
+            item.imei = imei;
+            item.serial = serial;
+            item.photo = photo;
+            item.isbn = isbn;
+        }
+    } else {
+        db.inventoryItems.push({
+            id: 'item_' + generateId(),
+            name,
+            productCode,
+            category,
+            price,
+            location,
+            place,
+            imei,
+            serial,
+            photo,
+            isbn,
+            timestamp: new Date().toISOString()
+        });
+    }
+    
+    saveDB(db);
+    closeModal();
+    render();
+};
+
+window.deleteInventoryItem = (itemId) => {
+    if (confirm('Are you sure you want to delete this inventory item?')) {
+        const db = getDB();
+        db.inventoryItems = db.inventoryItems.filter(i => i.id !== itemId);
+        saveDB(db);
+        render();
+    }
+};
+
+window.openInventoryConfigModal = () => {
+    const db = getDB();
+    const categories = db.inventoryCategories || [];
+    const locations = db.inventoryLocations || [];
+    const places = db.inventoryPlaces || [];
+    
+    window._invConfigTab = window._invConfigTab || 'categories';
+    
+    let tabContent = '';
+    
+    if (window._invConfigTab === 'categories') {
+        tabContent = `
+            <div class="space-y-4 font-sans">
+                <form onsubmit="addInventoryCategory(event)" class="flex gap-2">
+                    <input type="text" id="newCatName" placeholder="New Category Name" required class="glass-input flex-grow px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50">
+                    <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 shrink-0"><i class="fas fa-plus"></i> Add</button>
+                </form>
+                <div class="max-h-[300px] overflow-y-auto border border-gray-200 dark:border-white/5 rounded-xl divide-y divide-gray-100 dark:divide-white/5 bg-white/50 dark:bg-transparent">
+                    ${categories.map(c => `
+                        <div class="flex justify-between items-center p-3 hover:bg-gray-50/50 dark:hover:bg-white/[0.01]">
+                            <span class="text-sm font-medium text-gray-900 dark:text-white">${c.name}</span>
+                            ${c.id !== 'cat_books' ? `<button onclick="deleteInventoryCategory('${c.id}')" class="text-red-500 hover:text-red-600 p-2 transition-colors"><i class="fas fa-trash-alt"></i></button>` : '<span class="text-[10px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg font-bold">System</span>'}
+                        </div>
+                    `).join('') || '<div class="text-center py-6 text-gray-400">No categories added.</div>'}
+                </div>
+            </div>
+        `;
+    } else if (window._invConfigTab === 'locations') {
+        tabContent = `
+            <div class="space-y-4 font-sans">
+                <form onsubmit="addInventoryLocation(event)" class="flex gap-2">
+                    <input type="text" id="newLocName" placeholder="New Location Name" required class="glass-input flex-grow px-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50">
+                    <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white px-5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 shrink-0"><i class="fas fa-plus"></i> Add</button>
+                </form>
+                <div class="max-h-[300px] overflow-y-auto border border-gray-200 dark:border-white/5 rounded-xl divide-y divide-gray-100 dark:divide-white/5 bg-white/50 dark:bg-transparent">
+                    ${locations.map(l => `
+                        <div class="flex justify-between items-center p-3 hover:bg-gray-50/50 dark:hover:bg-white/[0.01]">
+                            <span class="text-sm font-medium text-gray-900 dark:text-white">${l.name}</span>
+                            <button onclick="deleteInventoryLocation('${l.id}')" class="text-red-500 hover:text-red-600 p-2 transition-colors"><i class="fas fa-trash-alt"></i></button>
+                        </div>
+                    `).join('') || '<div class="text-center py-6 text-gray-400">No locations added.</div>'}
+                </div>
+            </div>
+        `;
+    } else if (window._invConfigTab === 'places') {
+        let locOptions = '';
+        locations.forEach(l => {
+            locOptions += `<option value="${l.id}">${l.name}</option>`;
+        });
+        
+        tabContent = `
+            <div class="space-y-4 font-sans">
+                <form onsubmit="addInventoryPlace(event)" class="space-y-3 p-4 bg-gray-50/50 dark:bg-slate-850 p-4 rounded-2xl border border-gray-200 dark:border-white/5">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Select Location *</label>
+                            <select id="newPlaceLocation" required class="glass-input w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-slate-800 dark:[&>option]:bg-slate-800">
+                                <option value="">-- Choose Location --</option>
+                                ${locOptions}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Place Name *</label>
+                            <input type="text" id="newPlaceName" placeholder="e.g. Rack A, Shelf 2" required class="glass-input w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-slate-800">
+                        </div>
+                    </div>
+                    <div class="flex justify-end pt-1">
+                        <button type="submit" class="bg-brand-600 hover:bg-brand-500 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-md flex items-center gap-2"><i class="fas fa-plus"></i> Add Place</button>
+                    </div>
+                </form>
+                <div class="max-h-[220px] overflow-y-auto border border-gray-200 dark:border-white/5 rounded-xl divide-y divide-gray-100 dark:divide-white/5 bg-white/50 dark:bg-transparent">
+                    ${places.map(p => {
+                        const locName = locations.find(l => l.id === p.locationId)?.name || 'Unknown Location';
+                        return `
+                            <div class="flex justify-between items-center p-3 hover:bg-gray-50/50 dark:hover:bg-white/[0.01]">
+                                <div class="flex flex-col">
+                                    <span class="text-sm font-medium text-gray-900 dark:text-white">${p.name}</span>
+                                    <span class="text-[10px] text-gray-500 dark:text-gray-400 font-bold"><i class="fas fa-map-marker-alt text-brand-500 mr-0.5"></i> ${locName}</span>
+                                </div>
+                                <button onclick="deleteInventoryPlace('${p.id}')" class="text-red-500 hover:text-red-600 p-2 transition-colors"><i class="fas fa-trash-alt"></i></button>
+                            </div>
+                        `;
+                    }).join('') || '<div class="text-center py-6 text-gray-400">No places added yet.</div>'}
+                </div>
+            </div>
+        `;
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[200] flex items-center justify-center modal-overlay fade-in p-4';
+    modal.innerHTML = `
+        <div class="glass-panel w-full max-w-md rounded-2xl p-6 md:p-8 slide-up relative flex flex-col max-h-[85vh] font-sans">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><i class="fas fa-cog text-brand-500"></i> Configure Fields</h3>
+                <button onclick="closeSubModal()" class="text-gray-500 hover:text-gray-900"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            
+            <div class="flex p-1 bg-gray-150 dark:bg-slate-800/80 rounded-xl mb-6 relative border border-gray-200 dark:border-white/5 shrink-0">
+                <button onclick="switchInvConfigTab('categories')" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all ${window._invConfigTab === 'categories' ? 'bg-brand-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'}" style="outline: none;">
+                    Categories
+                </button>
+                <button onclick="switchInvConfigTab('locations')" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all ${window._invConfigTab === 'locations' ? 'bg-brand-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'}" style="outline: none;">
+                    Locations
+                </button>
+                <button onclick="switchInvConfigTab('places')" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all ${window._invConfigTab === 'places' ? 'bg-brand-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'}" style="outline: none;">
+                    Places
+                </button>
+            </div>
+            
+            <div class="flex-grow overflow-y-auto pr-2 custom-scrollbar">
+                ${tabContent}
+            </div>
+            
+            <div class="flex justify-end pt-4 mt-6 border-t border-gray-100 dark:border-white/5 shrink-0 font-sans">
+                <button onclick="closeSubModal()" class="px-6 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/20 text-gray-700 dark:text-white text-xs font-bold transition-all">Close</button>
+            </div>
+        </div>
+    `;
+    
+    window._activeSubModal = modal;
+    document.body.appendChild(modal);
+};
+
+window.switchInvConfigTab = (tab) => {
+    window._invConfigTab = tab;
+    closeSubModal();
+    window.openInventoryConfigModal();
+};
+
+window.addInventoryCategory = (e) => {
+    e.preventDefault();
+    const db = getDB();
+    const name = document.getElementById('newCatName').value.trim();
+    if (!name) return;
+    
+    if (db.inventoryCategories.find(c => c.name.toLowerCase() === name.toLowerCase())) {
+        alert('Category already exists!');
+        return;
+    }
+    
+    db.inventoryCategories.push({
+        id: 'cat_' + generateId(),
+        name: name
+    });
+    saveDB(db);
+    closeSubModal();
+    window.openInventoryConfigModal();
+};
+
+window.deleteInventoryCategory = (catId) => {
+    if (catId === 'cat_books') {
+        alert('Cannot delete system category Books!');
+        return;
+    }
+    if (confirm('Are you sure you want to delete this category? Items in this category will remain, but the category badge will display Uncategorized.')) {
+        const db = getDB();
+        db.inventoryCategories = db.inventoryCategories.filter(c => c.id !== catId);
+        saveDB(db);
+        closeSubModal();
+        window.openInventoryConfigModal();
+    }
+};
+
+window.addInventoryLocation = (e) => {
+    e.preventDefault();
+    const db = getDB();
+    const name = document.getElementById('newLocName').value.trim();
+    if (!name) return;
+    
+    if (db.inventoryLocations.find(l => l.name.toLowerCase() === name.toLowerCase())) {
+        alert('Location already exists!');
+        return;
+    }
+    
+    db.inventoryLocations.push({
+        id: 'loc_' + generateId(),
+        name: name
+    });
+    saveDB(db);
+    closeSubModal();
+    window.openInventoryConfigModal();
+};
+
+window.deleteInventoryLocation = (locId) => {
+    if (confirm('Are you sure you want to delete this location? All places under this location will also be deleted!')) {
+        const db = getDB();
+        db.inventoryLocations = db.inventoryLocations.filter(l => l.id !== locId);
+        db.inventoryPlaces = db.inventoryPlaces.filter(p => p.locationId !== locId);
+        saveDB(db);
+        closeSubModal();
+        window.openInventoryConfigModal();
+    }
+};
+
+window.addInventoryPlace = (e) => {
+    e.preventDefault();
+    const db = getDB();
+    const locId = document.getElementById('newPlaceLocation').value;
+    const name = document.getElementById('newPlaceName').value.trim();
+    if (!locId || !name) return;
+    
+    if (db.inventoryPlaces.find(p => p.locationId === locId && p.name.toLowerCase() === name.toLowerCase())) {
+        alert('Place already exists in this location!');
+        return;
+    }
+    
+    db.inventoryPlaces.push({
+        id: 'place_' + generateId(),
+        name: name,
+        locationId: locId
+    });
+    saveDB(db);
+    closeSubModal();
+    window.openInventoryConfigModal();
+};
+
+window.deleteInventoryPlace = (placeId) => {
+    if (confirm('Are you sure you want to delete this place?')) {
+        const db = getDB();
+        db.inventoryPlaces = db.inventoryPlaces.filter(p => p.id !== placeId);
+        saveDB(db);
+        closeSubModal();
+        window.openInventoryConfigModal();
+    }
+};
+
+window.checkCategorySelectionInForm = () => {
+    const catSelect = document.getElementById('invItemCategory');
+    const isbnContainer = document.getElementById('invIsbnContainer');
+    if (!catSelect || !isbnContainer) return;
+    const selectedOption = catSelect.options[catSelect.selectedIndex];
+    const catName = selectedOption ? selectedOption.text.trim().toLowerCase() : '';
+    const catId = catSelect.value;
+    
+    if (catName === 'books' || catId === 'cat_books') {
+        isbnContainer.classList.remove('hidden');
+        const isbnInput = document.getElementById('invItemIsbn');
+        if (isbnInput) isbnInput.required = true;
+    } else {
+        isbnContainer.classList.add('hidden');
+        const isbnInput = document.getElementById('invItemIsbn');
+        if (isbnInput) {
+            isbnInput.required = false;
+            isbnInput.value = '';
+        }
+    }
+};
+
+window.updatePlacesDropdownInForm = (selectedPlaceId = null) => {
+    const locSelect = document.getElementById('invItemLocation');
+    const placeSelect = document.getElementById('invItemPlace');
+    if (!locSelect || !placeSelect) return;
+    const locId = locSelect.value;
+    
+    const db = getDB();
+    const places = (db.inventoryPlaces || []).filter(p => p.locationId === locId);
+    
+    let html = '<option value="">-- Select Place --</option>';
+    places.forEach(p => {
+        const isSelected = p.id === selectedPlaceId ? 'selected' : '';
+        html += `<option value="${p.id}" ${isSelected}>${p.name}</option>`;
+    });
+    placeSelect.innerHTML = html;
+};
+
+window.triggerInventoryPhotoUpload = () => {
+    triggerImageUpload((dataUrl) => {
+        const input = document.getElementById('invItemPhoto');
+        if (input) input.value = dataUrl;
+        
+        const preview = document.getElementById('invPhotoPreview');
+        if (preview) preview.innerHTML = `<img src="${dataUrl}" class="w-full h-full object-cover">`;
+    });
+};
+
+window.viewInventoryImage = (url, name) => {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 z-[200] flex items-center justify-center modal-overlay fade-in p-4 bg-black/85 backdrop-blur-md font-sans';
+    modal.innerHTML = `
+        <div class="relative max-w-3xl w-full max-h-[85vh] flex flex-col justify-center items-center slide-up">
+            <div class="absolute -top-12 right-0 flex items-center gap-4 text-white text-sm">
+                <span class="font-bold drop-shadow-lg">${name}</span>
+                <button onclick="closeSubModal()" class="text-white hover:text-gray-300 text-xl font-bold bg-white/10 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur"><i class="fas fa-times"></i></button>
+            </div>
+            <img src="${url}" class="max-w-full max-h-[80vh] rounded-2xl shadow-2xl border border-white/10 object-contain">
+        </div>
+    `;
+    window._activeSubModal = modal;
+    document.body.appendChild(modal);
+};
+
 function parsePageContent(content) {
     const db = getDB();
     const formRegex = /\[FORM:([a-zA-Z0-9]+)\]/g;
@@ -1959,6 +2888,11 @@ function parsePageContent(content) {
     // Parse USER_DIRECTORY shortcode
     parsedContent = parsedContent.replace(/\[USER_DIRECTORY\]/g, () => {
         return window.renderUserDirectoryHTML();
+    });
+
+    // Parse INVENTORY shortcode
+    parsedContent = parsedContent.replace(/\[INVENTORY\]/g, () => {
+        return window.renderInventoryHTML();
     });
 
     return parsedContent;

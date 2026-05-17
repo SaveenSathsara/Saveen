@@ -92,13 +92,31 @@ function initChat() {
                     <img id="chat-attachment-img" src="" class="h-20 rounded-lg shadow-md border border-gray-200 dark:border-white/10 object-cover">
                     <button onclick="clearChatAttachment()" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 shadow-sm"><i class="fas fa-times"></i></button>
                 </div>
-                <form onsubmit="handleSendMessage(event)" class="flex gap-2 items-center w-full">
+                <form onsubmit="handleSendMessage(event)" class="flex gap-2 items-center w-full relative">
                     <input type="file" id="chat-file-input" accept="image/*" class="hidden" onchange="handleChatAttachment(this)">
-                    <button type="button" onclick="document.getElementById('chat-file-input').click()" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors shrink-0">
+                    <button type="button" id="chat-image-btn" onclick="document.getElementById('chat-file-input').click()" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors shrink-0">
                         <i class="fas fa-image"></i>
                     </button>
+                    
+                    <!-- Voice Recording Overlay -->
+                    <div id="voice-record-ui" class="hidden flex-grow flex items-center justify-between bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 px-4 py-1.5 rounded-full text-red-600 dark:text-red-400 text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+                            <span class="font-semibold">Recording:</span>
+                            <span id="voice-record-timer" class="font-mono">0:00</span>
+                        </div>
+                        <button type="button" onclick="window.cancelVoiceRecording()" class="w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 flex items-center justify-center hover:bg-red-200 dark:hover:bg-red-800/50 transition-colors">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+
                     <input type="text" id="chat-input" placeholder="Type a message..." class="flex-grow px-4 py-2 rounded-full bg-gray-100 dark:bg-slate-700 border-none text-sm focus:ring-2 focus:ring-brand-500 text-gray-900 dark:text-white">
-                    <button type="submit" class="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center hover:bg-brand-500 transition-colors shrink-0">
+                    
+                    <button type="button" id="chat-voice-btn" onclick="window.toggleVoiceRecord()" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors shrink-0">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                    
+                    <button type="submit" id="chat-send-btn" class="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center hover:bg-brand-500 transition-colors shrink-0">
                         <i class="fas fa-paper-plane"></i>
                     </button>
                 </form>
@@ -166,6 +184,9 @@ function toggleChat() {
         badge.classList.add('hidden');
     } else {
         win.classList.add('hidden');
+        if (typeof window.cancelVoiceRecording === 'function') {
+            window.cancelVoiceRecording();
+        }
     }
 }
 
@@ -177,6 +198,9 @@ function showContacts() {
 
     footer.classList.add('hidden');
     backBtn.classList.add('hidden');
+    if (typeof window.cancelVoiceRecording === 'function') {
+        window.cancelVoiceRecording();
+    }
     headerInfo.innerHTML = `
         <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center font-bold"><i class="fas fa-users"></i></div>
         <div>
@@ -242,6 +266,32 @@ function playMsgSound() {
     msgSound.play().catch(e => console.log("Sound play blocked"));
 }
 
+function formatTime(seconds) {
+    if (isNaN(seconds) || seconds === Infinity) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+function renderVoicePlayer(msgId, audioUrl, duration) {
+    const formattedDuration = duration ? formatTime(duration) : "--:--";
+    return `
+        <div class="flex items-center gap-3 bg-white/15 dark:bg-black/20 p-2.5 rounded-2xl min-w-[210px] max-w-[250px] border border-white/10 select-none my-1" onclick="event.stopPropagation()">
+            <audio id="audio-${msgId}" src="${audioUrl}" preload="metadata" ontimeupdate="window.updateAudioProgress('${msgId}')" onended="window.audioEnded('${msgId}')"></audio>
+            <button type="button" onclick="window.toggleAudioPlay('${msgId}')" id="play-btn-${msgId}" class="w-8 h-8 rounded-full bg-white dark:bg-slate-800 text-brand-600 dark:text-brand-400 flex items-center justify-center shadow hover:scale-105 transition-all shrink-0">
+                <i class="fas fa-play pl-0.5 text-xs" id="play-icon-${msgId}"></i>
+            </button>
+            <div class="flex-grow flex flex-col justify-center min-w-[120px]">
+                <input type="range" id="seek-${msgId}" min="0" max="100" value="0" oninput="window.seekAudio('${msgId}', this.value)" class="w-full h-1 bg-gray-300 dark:bg-slate-700/50 rounded-lg appearance-none cursor-pointer accent-brand-500">
+                <div class="flex justify-between items-center text-[9px] opacity-75 mt-1 font-mono">
+                    <span id="time-${msgId}">0:00</span>
+                    <span id="dur-${msgId}">${formattedDuration}</span>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 function renderMessages(snapshotValue) {
     const body = document.getElementById('chat-body');
     if (!snapshotValue) {
@@ -275,6 +325,10 @@ function renderMessages(snapshotValue) {
             content = `<div class="mb-1"><img src="${m.imageUrl}" class="rounded-lg max-w-full max-h-48 object-contain cursor-pointer" onclick="window.open(this.src)"></div>` + (content ? `<div class="mt-1">${content}</div>` : '');
         }
 
+        if (m.audioUrl && !m.deletedForEveryone) {
+            content = renderVoicePlayer(m.id, m.audioUrl, m.audioDuration) + (content ? `<div class="mt-1">${content}</div>` : '');
+        }
+
         if (m.deletedForEveryone) {
             content = `<i class="fas fa-ban mr-1 opacity-50"></i> <span class="italic opacity-50">This message was deleted</span>`;
         }
@@ -299,9 +353,19 @@ function renderMessages(snapshotValue) {
             reactionsHtml += '</div>';
         }
 
+        // Determine data-text representation for copying/replying
+        let msgBubbleText = m.text || '';
+        if (m.audioUrl) {
+            msgBubbleText = '[Voice Message]';
+        } else if (m.imageUrl) {
+            msgBubbleText = '[Image]';
+        }
+
         return `
             <div id="msg-${m.id}" 
                  onclick="openMessageMenu('${m.id}', event)" 
+                 data-text="${msgBubbleText.replace(/"/g, '&quot;')}"
+                 data-is-audio="${m.audioUrl ? 'true' : 'false'}"
                  class="chat-bubble ${isSent ? 'sent' : 'received'} relative group">
                 ${replyHtml}
                 <div class="message-text">${content}</div>
@@ -316,6 +380,10 @@ function renderMessages(snapshotValue) {
 
 function handleSendMessage(e) {
     e.preventDefault();
+    if (typeof isRecording !== 'undefined' && isRecording) {
+        window.stopAndSendVoiceRecording();
+        return;
+    }
     const input = document.getElementById('chat-input');
     const text = input.value.trim();
     if ((!text && !chatAttachment) || !activeChatUser || !currentUser) return;
@@ -387,7 +455,8 @@ function openMessageMenu(msgId, e) {
     // Get message data
     const messageEl = document.getElementById(`msg-${msgId}`);
     const isSent = messageEl.classList.contains('sent');
-    const text = messageEl.querySelector('.message-text').innerText;
+    const text = messageEl.getAttribute('data-text') || '';
+    const isAudio = messageEl.getAttribute('data-is-audio') === 'true';
     const senderName = isSent ? currentUser.username : activeChatUser.username;
 
     const menu = document.createElement('div');
@@ -548,6 +617,227 @@ function openChat(userId) {
         const messages = snapshot.val();
         renderMessages(messages);
     });
+}
+
+// --- VOICE RECORDING & PLAYBACK CONTROLS ---
+
+// Audio Player Helpers
+window.toggleAudioPlay = (msgId) => {
+    const audio = document.getElementById(`audio-${msgId}`);
+    const playIcon = document.getElementById(`play-icon-${msgId}`);
+    if (!audio) return;
+    
+    // Pause other playing audios
+    const allAudios = document.querySelectorAll('audio[id^="audio-"]');
+    allAudios.forEach(aud => {
+        if (aud.id !== `audio-${msgId}` && !aud.paused) {
+            aud.pause();
+            const otherId = aud.id.replace('audio-', '');
+            const otherIcon = document.getElementById(`play-icon-${otherId}`);
+            if (otherIcon) otherIcon.className = 'fas fa-play pl-0.5 text-xs';
+        }
+    });
+
+    if (audio.paused) {
+        audio.play().then(() => {
+            if (playIcon) playIcon.className = 'fas fa-pause text-xs';
+        }).catch(err => console.log("Audio play error:", err));
+    } else {
+        audio.pause();
+        if (playIcon) playIcon.className = 'fas fa-play pl-0.5 text-xs';
+    }
+};
+
+window.updateAudioProgress = (msgId) => {
+    const audio = document.getElementById(`audio-${msgId}`);
+    const seek = document.getElementById(`seek-${msgId}`);
+    const timeEl = document.getElementById(`time-${msgId}`);
+    const durEl = document.getElementById(`dur-${msgId}`);
+    
+    if (!audio) return;
+    const current = audio.currentTime;
+    const duration = audio.duration;
+    
+    if (!isNaN(current)) {
+        if (timeEl) timeEl.innerText = formatTime(current);
+    }
+    if (!isNaN(duration) && duration !== Infinity) {
+        if (durEl) durEl.innerText = formatTime(duration);
+        if (seek) seek.value = (current / duration) * 100;
+    }
+};
+
+window.audioEnded = (msgId) => {
+    const playIcon = document.getElementById(`play-icon-${msgId}`);
+    const seek = document.getElementById(`seek-${msgId}`);
+    const timeEl = document.getElementById(`time-${msgId}`);
+    if (playIcon) playIcon.className = 'fas fa-play pl-0.5 text-xs';
+    if (seek) seek.value = 0;
+    if (timeEl) timeEl.innerText = "0:00";
+};
+
+window.seekAudio = (msgId, percent) => {
+    const audio = document.getElementById(`audio-${msgId}`);
+    if (!audio) return;
+    const duration = audio.duration;
+    if (!isNaN(duration) && duration !== Infinity) {
+        audio.currentTime = (percent / 100) * duration;
+    }
+};
+
+// Voice Recording API
+let mediaRecorder = null;
+let audioChunks = [];
+let recordStartTime = null;
+let recordTimerInterval = null;
+let isRecording = false;
+window._shouldSendVoice = false;
+
+window.toggleVoiceRecord = () => {
+    if (isRecording) {
+        window.stopAndSendVoiceRecording();
+    } else {
+        window.startVoiceRecording();
+    }
+};
+
+window.startVoiceRecording = async () => {
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert("Voice recording is not supported in this browser/protocol (requires HTTPS or localhost).");
+            return;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunks.push(e.data);
+        };
+        
+        mediaRecorder.onstop = () => {
+            stream.getTracks().forEach(t => t.stop());
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            
+            if (audioBlob.size > 2.5 * 1024 * 1024) {
+                alert("Voice message too long (exceeds size limit).");
+                window.resetVoiceRecordingUI();
+                return;
+            }
+            
+            if (window._shouldSendVoice && audioChunks.length > 0) {
+                const duration = Math.round((Date.now() - recordStartTime) / 1000);
+                if (duration >= 1) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        sendVoiceMessage(e.target.result, duration);
+                    };
+                    reader.readAsDataURL(audioBlob);
+                }
+            }
+            window.resetVoiceRecordingUI();
+        };
+        
+        mediaRecorder.start();
+        recordStartTime = Date.now();
+        isRecording = true;
+        window._shouldSendVoice = false;
+        
+        window.showVoiceRecordingUI();
+    } catch (err) {
+        console.error("Microphone error:", err);
+        alert("Cannot access microphone. Please grant permission.");
+    }
+};
+
+window.stopAndSendVoiceRecording = () => {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+    window._shouldSendVoice = true;
+    mediaRecorder.stop();
+};
+
+window.cancelVoiceRecording = () => {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+    window._shouldSendVoice = false;
+    mediaRecorder.stop();
+};
+
+window.showVoiceRecordingUI = () => {
+    const input = document.getElementById('chat-input');
+    const imageBtn = document.getElementById('chat-image-btn');
+    const voiceBtn = document.getElementById('chat-voice-btn');
+    const recordUI = document.getElementById('voice-record-ui');
+    const sendBtn = document.getElementById('chat-send-btn');
+    const timer = document.getElementById('voice-record-timer');
+    
+    if (input) input.classList.add('hidden');
+    if (imageBtn) imageBtn.classList.add('hidden');
+    if (voiceBtn) {
+        voiceBtn.innerHTML = '<i class="fas fa-microphone-slash text-red-500 animate-pulse"></i>';
+        voiceBtn.classList.add('bg-red-100', 'dark:bg-red-950/30');
+    }
+    if (recordUI) recordUI.classList.remove('hidden');
+    if (sendBtn) {
+        sendBtn.innerHTML = '<i class="fas fa-check"></i>';
+        sendBtn.classList.replace('bg-brand-600', 'bg-green-600');
+        sendBtn.classList.replace('hover:bg-brand-500', 'hover:bg-green-500');
+    }
+    if (timer) timer.innerText = "0:00";
+    
+    if (recordTimerInterval) clearInterval(recordTimerInterval);
+    recordTimerInterval = setInterval(() => {
+        const elapsed = Math.round((Date.now() - recordStartTime) / 1000);
+        if (timer) timer.innerText = formatTime(elapsed);
+        if (elapsed >= 120) {
+            window.stopAndSendVoiceRecording();
+        }
+    }, 1000);
+};
+
+window.resetVoiceRecordingUI = () => {
+    isRecording = false;
+    if (recordTimerInterval) {
+        clearInterval(recordTimerInterval);
+        recordTimerInterval = null;
+    }
+    
+    const input = document.getElementById('chat-input');
+    const imageBtn = document.getElementById('chat-image-btn');
+    const voiceBtn = document.getElementById('chat-voice-btn');
+    const recordUI = document.getElementById('voice-record-ui');
+    const sendBtn = document.getElementById('chat-send-btn');
+    
+    if (input) input.classList.remove('hidden');
+    if (imageBtn) imageBtn.classList.remove('hidden');
+    if (voiceBtn) {
+        voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+        voiceBtn.className = "w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors shrink-0";
+    }
+    if (recordUI) recordUI.classList.add('hidden');
+    if (sendBtn) {
+        sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+        sendBtn.className = "w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center hover:bg-brand-500 transition-colors shrink-0";
+    }
+};
+
+function sendVoiceMessage(base64Audio, duration) {
+    if (!activeChatUser || !currentUser || !chatMessagesRef) return;
+    const message = {
+        senderId: currentUser.id,
+        senderName: currentUser.username,
+        audioUrl: base64Audio,
+        audioDuration: duration,
+        timestamp: Date.now()
+    };
+    if (replyingTo) {
+        message.replyTo = {
+            id: replyingTo.id,
+            text: replyingTo.text,
+            senderName: replyingTo.senderName
+        };
+        cancelReply();
+    }
+    chatMessagesRef.push(message);
 }
 
 function resetChatLock() {
