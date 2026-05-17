@@ -799,6 +799,8 @@ function openPageModal(pageId = null) {
                                 <button type="button" onclick="insertShortcode('youtube')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fab fa-youtube mr-1 text-red-500 dark:text-red-400"></i> YouTube</button>
                                 <button type="button" onclick="insertShortcode('gdoc')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fas fa-file-alt mr-1 text-blue-500 dark:text-blue-400"></i> Google Doc/Form</button>
                                 <button type="button" onclick="insertShortcode('directory')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fas fa-address-book mr-1 text-purple-500 dark:text-purple-400"></i> User Directory</button>
+                                <button type="button" onclick="insertShortcode('inventory')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fas fa-boxes mr-1 text-orange-500 dark:text-orange-400"></i> Inventory</button>
+                                <button type="button" onclick="insertShortcode('games')" class="text-xs bg-gray-100 dark:bg-slate-700/50 hover:bg-gray-200 dark:hover:bg-slate-700 px-2.5 py-1.5 rounded transition-colors text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10"><i class="fas fa-gamepad mr-1 text-pink-500 dark:text-pink-400"></i> Live Games</button>
                             </div>
                         </div>
                         <textarea id="pageContent" required rows="10" class="glass-input w-full px-4 py-3 rounded-xl bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 font-mono text-sm">${page.content}</textarea>
@@ -1540,6 +1542,10 @@ window.insertShortcode = (type) => {
         }
     } else if (type === 'directory') {
         insertion = `\n[USER_DIRECTORY]\n`;
+    } else if (type === 'inventory') {
+        insertion = `\n[INVENTORY]\n`;
+    } else if (type === 'games') {
+        insertion = `\n[LIVE_GAMES]\n`;
     }
     
     if (insertion) {
@@ -2893,6 +2899,11 @@ function parsePageContent(content) {
     // Parse INVENTORY shortcode
     parsedContent = parsedContent.replace(/\[INVENTORY\]/g, () => {
         return window.renderInventoryHTML();
+    });
+
+    // Parse LIVE_GAMES shortcode
+    parsedContent = parsedContent.replace(/\[LIVE_GAMES\]/g, () => {
+        return window.renderLiveGamesHTML();
     });
 
     return parsedContent;

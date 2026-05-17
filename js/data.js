@@ -112,6 +112,11 @@ function getDB() {
         dbData.pages.push({ id: 'inventory', title: 'Inventory Management', content: '[INVENTORY]', isSystem: false, showInNav: false });
     }
 
+    // Auto-inject Live Games page definition if it doesn't exist
+    if (dbData.pages && !dbData.pages.find(p => p.id === 'live_games')) {
+        dbData.pages.push({ id: 'live_games', title: 'Live Games', content: '[LIVE_GAMES]', isSystem: false, showInNav: false });
+    }
+
     // Initialize Inventory Data Structures
     if (!dbData.inventoryItems) dbData.inventoryItems = [];
     if (!dbData.inventoryCategories) {
@@ -125,10 +130,21 @@ function getDB() {
     if (!dbData.inventoryLocations) dbData.inventoryLocations = [];
     if (!dbData.inventoryPlaces) dbData.inventoryPlaces = [];
 
-    // Ensure all users have an Inventory Access PIN field initialized
+    // Initialize Live Games Data Structures
+    if (!dbData.gamesState) {
+        dbData.gamesState = {
+            rooms: {},
+            activePlayers: {}
+        };
+    }
+
+    // Ensure all users have an Inventory Access PIN field initialized and gameScores
     dbData.users.forEach(u => {
         if (u.invAccessPin === undefined) {
             u.invAccessPin = u.role === 'admin' ? '2014518' : '123456';
+        }
+        if (u.gameScores === undefined) {
+            u.gameScores = {};
         }
     });
     
