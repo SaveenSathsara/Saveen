@@ -87,10 +87,18 @@ function initChat() {
                 <button onclick="cancelReply()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
             </div>
 
-            <div id="chat-footer" class="p-4 bg-white dark:bg-slate-800 border-t border-gray-100 dark:border-white/5 hidden">
-                <form onsubmit="handleSendMessage(event)" class="flex gap-2">
+            <div id="chat-footer" class="p-4 bg-white dark:bg-slate-800 border-t border-gray-100 dark:border-white/5 hidden flex-col">
+                <div id="chat-attachment-preview" class="hidden mb-2 relative self-start">
+                    <img id="chat-attachment-img" src="" class="h-20 rounded-lg shadow-md border border-gray-200 dark:border-white/10 object-cover">
+                    <button onclick="clearChatAttachment()" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 shadow-sm"><i class="fas fa-times"></i></button>
+                </div>
+                <form onsubmit="handleSendMessage(event)" class="flex gap-2 items-center w-full">
+                    <input type="file" id="chat-file-input" accept="image/*" class="hidden" onchange="handleChatAttachment(this)">
+                    <button type="button" onclick="document.getElementById('chat-file-input').click()" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors shrink-0">
+                        <i class="fas fa-image"></i>
+                    </button>
                     <input type="text" id="chat-input" placeholder="Type a message..." class="flex-grow px-4 py-2 rounded-full bg-gray-100 dark:bg-slate-700 border-none text-sm focus:ring-2 focus:ring-brand-500 text-gray-900 dark:text-white">
-                    <button type="submit" class="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center hover:bg-brand-500 transition-colors">
+                    <button type="submit" class="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center hover:bg-brand-500 transition-colors shrink-0">
                         <i class="fas fa-paper-plane"></i>
                     </button>
                 </form>
@@ -263,6 +271,10 @@ function renderMessages(snapshotValue) {
         const isSent = m.senderId === currentUser.id;
         
         let content = m.text;
+        if (m.imageUrl && !m.deletedForEveryone) {
+            content = `<div class="mb-1"><img src="${m.imageUrl}" class="rounded-lg max-w-full max-h-48 object-contain cursor-pointer" onclick="window.open(this.src)"></div>` + (content ? `<div class="mt-1">${content}</div>` : '');
+        }
+
         if (m.deletedForEveryone) {
             content = `<i class="fas fa-ban mr-1 opacity-50"></i> <span class="italic opacity-50">This message was deleted</span>`;
         }
@@ -306,7 +318,7 @@ function handleSendMessage(e) {
     e.preventDefault();
     const input = document.getElementById('chat-input');
     const text = input.value.trim();
-    if (!text || !activeChatUser || !currentUser) return;
+    if ((!text && !chatAttachment) || !activeChatUser || !currentUser) return;
 
     const message = {
         senderId: currentUser.id,
@@ -314,6 +326,10 @@ function handleSendMessage(e) {
         text: text,
         timestamp: Date.now()
     };
+
+    if (chatAttachment) {
+        message.imageUrl = chatAttachment;
+    }
 
     if (replyingTo) {
         message.replyTo = {
@@ -326,7 +342,39 @@ function handleSendMessage(e) {
 
     chatMessagesRef.push(message);
     input.value = '';
+    if (chatAttachment) {
+        clearChatAttachment();
+    }
 }
+
+let chatAttachment = null;
+
+window.handleChatAttachment = (input) => {
+    const file = input.files[0];
+    if (!file) return;
+    
+    // Check size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+        alert("Image is too large. Maximum size is 2MB.");
+        input.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        chatAttachment = e.target.result;
+        document.getElementById('chat-attachment-img').src = chatAttachment;
+        document.getElementById('chat-attachment-preview').classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+};
+
+window.clearChatAttachment = () => {
+    chatAttachment = null;
+    document.getElementById('chat-file-input').value = '';
+    document.getElementById('chat-attachment-preview').classList.add('hidden');
+    document.getElementById('chat-attachment-img').src = '';
+};
 
 // --- ADVANCED CHAT FUNCTIONS ---
 

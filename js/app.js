@@ -1088,6 +1088,18 @@ function openUserModal(userId = null) {
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Add Member PIN</label>
                             <input type="text" id="userDirAddPin" value="${user.dirAddPin || ''}" placeholder="PIN to add person" class="glass-input w-full px-3 py-2 rounded-lg bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 text-sm">
                         </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Edit Member PIN</label>
+                            <input type="text" id="userDirEditPin" value="${user.dirEditPin || ''}" placeholder="PIN to edit person" class="glass-input w-full px-3 py-2 rounded-lg bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Delete Member PIN</label>
+                            <input type="text" id="userDirDeletePin" value="${user.dirDeletePin || ''}" placeholder="PIN to delete person" class="glass-input w-full px-3 py-2 rounded-lg bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Search Full Name PIN</label>
+                            <input type="text" id="userDirSearchFullNamePin" value="${user.dirSearchFullNamePin || ''}" placeholder="PIN to search full name" class="glass-input w-full px-3 py-2 rounded-lg bg-white/50 dark:bg-slate-800/50 border-gray-200 dark:border-none focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
                     </div>
                 </div>
                 
@@ -1164,6 +1176,9 @@ function saveUser(e, editId) {
     const dirLoginPin = document.getElementById('userDirLoginPin').value;
     const dirViewPin = document.getElementById('userDirViewPin').value;
     const dirAddPin = document.getElementById('userDirAddPin').value;
+    const dirEditPin = document.getElementById('userDirEditPin').value;
+    const dirDeletePin = document.getElementById('userDirDeletePin').value;
+    const dirSearchFullNamePin = document.getElementById('userDirSearchFullNamePin').value;
     const dirEnabled = document.getElementById('userDirEnabled').checked;
     
     if (editId) {
@@ -1181,6 +1196,9 @@ function saveUser(e, editId) {
         userObj.dirLoginPin = dirLoginPin;
         userObj.dirViewPin = dirViewPin;
         userObj.dirAddPin = dirAddPin;
+        userObj.dirEditPin = dirEditPin;
+        userObj.dirDeletePin = dirDeletePin;
+        userObj.dirSearchFullNamePin = dirSearchFullNamePin;
         userObj.dirEnabled = dirEnabled;
     } else {
         if (db.users.find(u => u.username === username)) {
@@ -1200,6 +1218,9 @@ function saveUser(e, editId) {
             dirLoginPin,
             dirViewPin,
             dirAddPin,
+            dirEditPin,
+            dirDeletePin,
+            dirSearchFullNamePin,
             dirEnabled
         });
     }
@@ -1553,12 +1574,17 @@ window.renderUserDirectoryHTML = () => {
         `;
     }
 
+    window.dirSearchMode = window.dirSearchMode || 'short';
+    const isFullMode = window.dirSearchMode === 'full';
+
     let listHtml = dUsers.map(du => `
-        <tr class="border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors">
+        <tr class="dir-user-row border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors" data-shortname="${(du.shortName||'').toLowerCase()}" data-fullname="${(du.fullName||'').toLowerCase()}">
             <td class="py-3 px-4 font-mono text-gray-600 dark:text-gray-400">${du.id}</td>
             <td class="py-3 px-4 font-medium text-gray-900 dark:text-white">${du.shortName}</td>
-            <td class="py-3 px-4 flex gap-2">
-                <button onclick="viewDirectoryUserFullName('${du.id}')" class="text-xs bg-brand-100 text-brand-700 px-4 py-2 rounded-xl dark:bg-brand-500/20 dark:text-brand-300 hover:bg-brand-200 dark:hover:bg-brand-500/30 transition-colors font-bold whitespace-nowrap">View Full Name</button>
+            <td class="py-3 px-4 flex gap-2 flex-wrap">
+                <button onclick="viewDirectoryUserFullName('${du.id}')" class="text-xs bg-brand-100 text-brand-700 px-3 py-2 rounded-xl dark:bg-brand-500/20 dark:text-brand-300 hover:bg-brand-200 dark:hover:bg-brand-500/30 transition-colors font-bold whitespace-nowrap">View Full Name</button>
+                <button onclick="editDirectoryUser('${du.id}')" class="text-xs bg-blue-100 text-blue-700 px-3 py-2 rounded-xl dark:bg-blue-500/20 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-500/30 transition-colors font-bold whitespace-nowrap" title="Edit User"><i class="fas fa-edit"></i> Edit</button>
+                <button onclick="deleteDirectoryUser('${du.id}')" class="text-xs bg-red-100 text-red-700 px-3 py-2 rounded-xl dark:bg-red-500/20 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-500/30 transition-colors font-bold whitespace-nowrap" title="Delete User"><i class="fas fa-trash"></i> Delete</button>
             </td>
         </tr>
     `).join('');
@@ -1575,6 +1601,15 @@ window.renderUserDirectoryHTML = () => {
                     <i class="fas fa-user-plus"></i> Add New
                 </button>
             </div>
+            <div class="mb-4 flex flex-col sm:flex-row gap-3">
+                <div class="relative flex-grow">
+                    <i class="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="dirSearchInput" onkeyup="filterDirectoryUsers(this.value)" placeholder="${isFullMode ? 'Search by Full Name...' : 'Search by Short Name...'}" class="glass-input w-full pl-10 pr-4 py-2.5 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 bg-white/50 dark:bg-slate-800/50">
+                </div>
+                <button id="dirFullNameSearchBtn" onclick="unlockFullNameSearch()" class="${isFullMode ? 'bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300' : 'bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-gray-300'} px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors shrink-0">
+                    ${isFullMode ? '<i class="fas fa-unlock text-green-500"></i> Short Name Search' : '<i class="fas fa-lock text-brand-500"></i> Full Name Search'}
+                </button>
+            </div>
             <div class="overflow-x-auto rounded-xl border border-gray-200 dark:border-white/5">
                 <table class="w-full text-left text-sm">
                     <thead class="bg-gray-50 dark:bg-slate-800/80 text-gray-600 dark:text-gray-400 uppercase text-xs">
@@ -1586,11 +1621,78 @@ window.renderUserDirectoryHTML = () => {
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-white/5">
                         ${listHtml || '<tr><td colspan="3" class="text-center py-8 text-gray-500">No users found in directory.</td></tr>'}
+                        <tr id="dirEmptyRow" style="display:none;"><td colspan="3" class="text-center py-8 text-gray-500">No matching users found.</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     `;
+};
+
+window.unlockFullNameSearch = () => {
+    if (window.dirSearchMode === 'full') {
+        window.dirSearchMode = 'short';
+        document.getElementById('dirSearchInput').placeholder = "Search by Short Name...";
+        document.getElementById('dirFullNameSearchBtn').innerHTML = '<i class="fas fa-lock text-brand-500"></i> Full Name Search';
+        document.getElementById('dirFullNameSearchBtn').className = "bg-gray-100 text-gray-700 dark:bg-slate-800 dark:text-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors shrink-0";
+        filterDirectoryUsers(document.getElementById('dirSearchInput').value);
+        return;
+    }
+
+    const db = getDB();
+    const pwd = prompt("Enter your Full Name Search PIN:");
+    if (pwd === null) return;
+    
+    const admin = db.users.find(u => u.username === 'saveen');
+    const adminPwd = admin ? admin.pin : null;
+
+    const hasPermission = pwd === adminPwd || (currentUser && currentUser.dirSearchFullNamePin && pwd === currentUser.dirSearchFullNamePin);
+
+    if (!hasPermission) {
+        alert("Incorrect PIN! You don't have permission to search by Full Name.");
+        return;
+    }
+    
+    window.dirSearchMode = 'full';
+    document.getElementById('dirSearchInput').placeholder = "Search by Full Name...";
+    document.getElementById('dirFullNameSearchBtn').innerHTML = '<i class="fas fa-unlock text-green-500"></i> Short Name Search';
+    document.getElementById('dirFullNameSearchBtn').className = "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300 px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors shrink-0";
+    
+    filterDirectoryUsers(document.getElementById('dirSearchInput').value);
+};
+
+window.filterDirectoryUsers = (val) => {
+    const term = val.toLowerCase();
+    const rows = document.querySelectorAll('.dir-user-row');
+    let hasVisible = false;
+    
+    rows.forEach(row => {
+        const shortName = row.getAttribute('data-shortname');
+        const fullName = row.getAttribute('data-fullname');
+        
+        let match = false;
+        if (window.dirSearchMode === 'short') {
+            match = shortName.includes(term);
+        } else {
+            match = fullName.includes(term);
+        }
+        
+        if (match) {
+            row.style.display = '';
+            hasVisible = true;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    const emptyRow = document.getElementById('dirEmptyRow');
+    if (emptyRow) {
+        if (rows.length === 0) {
+            emptyRow.style.display = 'none';
+        } else {
+            emptyRow.style.display = hasVisible ? 'none' : '';
+        }
+    }
 };
 
 window.checkDirAccess = () => {
@@ -1625,6 +1727,62 @@ window.viewDirectoryUserFullName = (id) => {
     }
 };
 
+window.editDirectoryUser = (id) => {
+    const db = getDB();
+    const du = db.directoryUsers.find(u => u.id === id);
+    if(!du) return;
+
+    const pwd = prompt("Enter your Edit Member PIN to edit:");
+    if(pwd === null) return;
+    
+    const admin = db.users.find(u => u.username === 'saveen');
+    const adminPwd = admin ? admin.pin : null;
+
+    const hasPermission = pwd === adminPwd || (currentUser && currentUser.dirEditPin && pwd === currentUser.dirEditPin);
+
+    if(!hasPermission) {
+        alert("Incorrect Password! You do not have permission to edit this user.");
+        return;
+    }
+
+    const newFullName = prompt("Enter new Full Name:", du.fullName);
+    if (newFullName === null) return;
+    const newShortName = prompt("Enter new Short Name (Max 5 chars):", du.shortName);
+    if (newShortName === null) return;
+
+    du.fullName = newFullName;
+    du.shortName = newShortName.substring(0, 5);
+    saveDB(db);
+    render();
+    alert("User edited successfully!");
+};
+
+window.deleteDirectoryUser = (id) => {
+    const db = getDB();
+    const duIndex = db.directoryUsers.findIndex(u => u.id === id);
+    if(duIndex === -1) return;
+
+    const pwd = prompt("Enter your Delete Member PIN to delete:");
+    if(pwd === null) return;
+    
+    const admin = db.users.find(u => u.username === 'saveen');
+    const adminPwd = admin ? admin.pin : null;
+
+    const hasPermission = pwd === adminPwd || (currentUser && currentUser.dirDeletePin && pwd === currentUser.dirDeletePin);
+
+    if(!hasPermission) {
+        alert("Incorrect Password! You do not have permission to delete this user.");
+        return;
+    }
+
+    if (confirm("Are you sure you want to delete this user?")) {
+        db.directoryUsers.splice(duIndex, 1);
+        saveDB(db);
+        render();
+        alert("User deleted successfully!");
+    }
+};
+
 window.changeDirectoryUserPassword = (id) => {
     // Deprecated functionality, removed.
 };
@@ -1651,7 +1809,6 @@ window.openAddDirectoryUserForm = () => {
                     <label class="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Short Name (Max 5 chars)</label>
                     <input type="text" id="dirShortName" required maxlength="5" class="glass-input w-full px-4 py-3 rounded-xl border-none bg-white/50 dark:bg-slate-800/50 focus:ring-2 focus:ring-brand-500">
                 </div>
-                
                 <div id="dirFormMessage" class="text-sm font-bold text-green-600 dark:text-green-400 hidden bg-green-50 dark:bg-green-500/10 p-3 rounded-lg border border-green-200 dark:border-green-500/20 text-center"></div>
                 
                 <div class="flex justify-end gap-3 pt-6 mt-2 border-t border-gray-100 dark:border-white/5">
