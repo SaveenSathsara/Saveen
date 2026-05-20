@@ -2906,14 +2906,6 @@ function parsePageContent(content) {
         return window.renderLiveGamesHTML();
     });
 
-    // Parse BANKING_APP shortcode
-    parsedContent = parsedContent.replace(/\[BANKING_APP\]/g, () => {
-        if (typeof window.renderBankingAppHTML === 'function') {
-            return window.renderBankingAppHTML();
-        }
-        return '<div class="p-6 text-center text-red-500">Banking Module loading...</div>';
-    });
-
     return parsedContent;
 }
 
