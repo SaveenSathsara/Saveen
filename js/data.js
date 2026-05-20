@@ -97,6 +97,9 @@ function getDB() {
         if (!u.assignedPageIds) {
             u.assignedPageIds = [];
         }
+        if (!u.assignedPageIds.includes('banking_app') && u.role !== 'admin') {
+            u.assignedPageIds.push('banking_app');
+        }
         if (u.profilePic === undefined) {
             u.profilePic = '';
         }
@@ -116,6 +119,44 @@ function getDB() {
     if (dbData.pages && !dbData.pages.find(p => p.id === 'live_games')) {
         dbData.pages.push({ id: 'live_games', title: 'Live Games', content: '[LIVE_GAMES]', isSystem: false, showInNav: false });
     }
+
+    // Auto-inject Banking App page definition if it doesn't exist
+    if (dbData.pages && !dbData.pages.find(p => p.id === 'banking_app')) {
+        dbData.pages.push({ id: 'banking_app', title: 'Sapna Web Bank', content: '[BANKING_APP]', isSystem: false, showInNav: false });
+    }
+
+    // Initialize global banking data structures
+    if (!dbData.bankingGlobal) {
+        dbData.bankingGlobal = {
+            auditLogs: [
+                { id: 'log_' + generateId(), timestamp: new Date().toISOString(), user: 'system', action: 'INIT', details: 'Sapna Web Bank Initialized' }
+            ],
+            fraudAlerts: []
+        };
+    }
+
+    // Ensure all users have a bankAccount initialized
+    dbData.users.forEach(u => {
+        if (u.bankAccount === undefined) {
+            u.bankAccount = {
+                accountNumber: 'SB' + Math.floor(10000000 + Math.random() * 90000000),
+                balance: u.role === 'admin' ? 500000 : 15000,
+                accountType: 'Savings',
+                transactions: [
+                    { id: 'tx_' + generateId(), type: 'Deposit', amount: u.role === 'admin' ? 500000 : 15000, date: new Date().toISOString(), description: 'Account opening balance' }
+                ],
+                loans: [],
+                atmCard: {
+                    cardNumber: '4216' + Math.floor(100000000000 + Math.random() * 900000000000),
+                    cardType: 'Visa Signature',
+                    expiryDate: '12/31',
+                    cvv: Math.floor(100 + Math.random() * 900),
+                    status: 'Active',
+                    dailyLimit: 50000
+                }
+            };
+        }
+    });
 
     // Initialize Inventory Data Structures
     if (!dbData.inventoryItems) dbData.inventoryItems = [];
